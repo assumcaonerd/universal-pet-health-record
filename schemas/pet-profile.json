@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/pet-profile.json",
+  "title": "Pet Profile",
+  "description": "Perfil universal do animal de estimação",
+  "type": "object",
+  "required": ["id", "name", "species", "ownerId"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Identificador único do pet"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Nome do pet"
+    },
+    "species": {
+      "type": "string",
+      "enum": ["dog", "cat", "bird", "rabbit", "other"],
+      "description": "Espécie do animal"
+    },
+    "breed": {
+      "type": "string",
+      "description": "Raça"
+    },
+    "sex": {
+      "type": "string",
+      "enum": ["male", "female", "unknown"]
+    },
+    "birthDate": {
+      "type": "string",
+      "format": "date",
+      "description": "Data de nascimento (aproximada se necessário)"
+    },
+    "ownerId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Identificador do tutor principal"
+    },
+    "microchip": {
+      "type": "string",
+      "description": "Número do microchip"
+    },
+    "weightKg": {
+      "type": "number",
+      "minimum": 0
+    },
+    "notes": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

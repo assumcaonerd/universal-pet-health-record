@@ -1,0 +1,14 @@
+openapi: 3.0.3
+info:
+  title: Universal Pet Health Record API
+  description: API central para prontuário universal de saúde animal
+  version: 0.1.0
+
+servers:
+  - url: https://api.example.com/v1
+    description: Produção (placeholder)
+
+paths: {}
+
+components:
+  schemas: {}

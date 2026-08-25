@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/vaccination-log.json",
+  "title": "Vaccination Log",
+  "description": "Registro de vacinação do pet",
+  "type": "object",
+  "required": ["id", "petId", "vaccineName", "dateAdministered"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "petId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "vaccineName": {
+      "type": "string",
+      "description": "Nome da vacina (ex: V8, V10, Antirrábica)"
+    },
+    "manufacturer": {
+      "type": "string"
+    },
+    "batchNumber": {
+      "type": "string"
+    },
+    "dateAdministered": {
+      "type": "string",
+      "format": "date"
+    },
+    "nextDueDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "administeredBy": {
+      "type": "string",
+      "format": "uuid",
+      "description": "ID do veterinário ou profissional que aplicou"
+    },
+    "clinicId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

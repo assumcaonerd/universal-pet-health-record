@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/medical-record.json",
+  "title": "Medical Record",
+  "description": "Registro médico / prontuário de consulta ou procedimento",
+  "type": "object",
+  "required": ["id", "petId", "date", "type", "veterinarianId"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "petId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["consultation", "surgery", "exam", "hospitalization", "other"]
+    },
+    "veterinarianId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "clinicId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "diagnosis": {
+      "type": "string"
+    },
+    "symptoms": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "treatment": {
+      "type": "string"
+    },
+    "prescriptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "medication": { "type": "string" },
+          "dosage": { "type": "string" },
+          "duration": { "type": "string" }
+        }
+      }
+    },
+    "notes": {
+      "type": "string"
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string" },
+          "type": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}
