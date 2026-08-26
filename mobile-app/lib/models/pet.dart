@@ -26,4 +26,24 @@ class Pet {
         microchip: json['microchip'] as String?,
         version: (json['version'] as num?)?.toInt() ?? 1,
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'species': species,
+        'breed': breed,
+        'birthDate': birthDate?.toIso8601String(),
+        'microchip': microchip,
+        'version': version,
+      };
+
+  Pet copyWith({String? name, String? species, String? breed, DateTime? birthDate, String? microchip, int? version}) => Pet(
+        id: id,
+        name: name ?? this.name,
+        species: species ?? this.species,
+        breed: breed ?? this.breed,
+        birthDate: birthDate ?? this.birthDate,
+        microchip: microchip ?? this.microchip,
+        version: version ?? this.version,
+      );
 }
