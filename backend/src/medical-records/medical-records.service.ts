@@ -71,6 +71,7 @@ export class MedicalRecordsService {
           treatment: dto.treatment,
           notes: dto.notes,
           occurredAt: new Date(dto.occurredAt),
+          followUpAt: dto.followUpAt ? new Date(dto.followUpAt) : undefined,
         },
       });
 
@@ -93,7 +94,7 @@ export class MedicalRecordsService {
           action: 'MEDICAL_RECORD_CREATED',
           entityType: 'MedicalRecord',
           entityId: record.id,
-          metadata: { petId, version: 1, accessGrantId: grant.id },
+          metadata: { petId, version: 1, accessGrantId: grant.id, followUpAt: record.followUpAt },
         },
       });
 
