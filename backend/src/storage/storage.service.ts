@@ -1,5 +1,5 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
 
@@ -36,6 +36,19 @@ export class StorageService {
     });
     const uploadUrl = await getSignedUrl(this.client, command, { expiresIn: 300 });
     return { storageKey: key, uploadUrl, expiresInSeconds: 300 };
+  }
+
+  async createPresignedDownload(storageKey: string, fileName: string, mimeType: string) {
+    const bucket = this.requireBucket();
+    const safeName = fileName.replace(/["\\\r\n]/g, '_').slice(-180);
+    const command = new GetObjectCommand({
+      Bucket: bucket,
+      Key: storageKey,
+      ResponseContentType: mimeType,
+      ResponseContentDisposition: `attachment; filename="${safeName}"`,
+    });
+    const downloadUrl = await getSignedUrl(this.client, command, { expiresIn: 120 });
+    return { downloadUrl, expiresInSeconds: 120 };
   }
 
   async verifyObject(storageKey: string, expectedSha256: string, expectedSize: number) {
