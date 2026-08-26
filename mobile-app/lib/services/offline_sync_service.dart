@@ -24,28 +24,40 @@ class OfflineSyncService {
 
   Future<void> queuePetUpdate(Pet pet, Map<String, dynamic> payload) async {
     final deviceId = await store.deviceId();
-    await store.enqueue(PendingSyncEvent(
-      clientEventId: const Uuid().v4(),
-      deviceId: deviceId,
-      entityType: 'Pet',
-      entityId: pet.id,
-      operation: 'UPDATE',
-      version: pet.version + 1,
-      payload: payload,
-    ));
-
+    await store.enqueue(PendingSyncEvent(clientEventId: const Uuid().v4(), deviceId: deviceId, entityType: 'Pet', entityId: pet.id, operation: 'UPDATE', version: pet.version + 1, payload: payload));
     final cached = Pet(
       id: pet.id,
       name: payload.containsKey('name') ? payload['name'] as String : pet.name,
       species: payload.containsKey('species') ? payload['species'] as String : pet.species,
       breed: payload.containsKey('breed') ? payload['breed'] as String? : pet.breed,
-      birthDate: payload.containsKey('birthDate')
-          ? (payload['birthDate'] is String ? DateTime.tryParse(payload['birthDate'] as String) : null)
-          : pet.birthDate,
+      birthDate: payload.containsKey('birthDate') ? (payload['birthDate'] is String ? DateTime.tryParse(payload['birthDate'] as String) : null) : pet.birthDate,
       microchip: payload.containsKey('microchip') ? payload['microchip'] as String? : pet.microchip,
       version: pet.version + 1,
     );
     await store.upsertCachedPet(cached);
+  }
+
+  Future<String> queueAllergyCreate(String petId, {required String allergen, String? reaction, required String severity}) async {
+    final deviceId = await store.deviceId();
+    final allergyId = const Uuid().v4();
+    await store.enqueue(PendingSyncEvent(
+      clientEventId: const Uuid().v4(), deviceId: deviceId, entityType: 'Allergy', entityId: allergyId, operation: 'CREATE', version: 1,
+      payload: {'petId': petId, 'allergen': allergen, 'reaction': reaction, 'severity': severity},
+    ));
+    return allergyId;
+  }
+
+  Future<void> queueAllergyDeactivate(String allergyId) async {
+    final deviceId = await store.deviceId();
+    await store.enqueue(PendingSyncEvent(clientEventId: const Uuid().v4(), deviceId: deviceId, entityType: 'Allergy', entityId: allergyId, operation: 'DEACTIVATE', version: 1, payload: const {}));
+  }
+
+  Future<void> queueReminderState(String reminderId, Map<String, dynamic> state) async {
+    final deviceId = await store.deviceId();
+    await store.enqueue(PendingSyncEvent(
+      clientEventId: const Uuid().v4(), deviceId: deviceId, entityType: 'ReminderState', entityId: const Uuid().v4(), operation: 'SET', version: 1,
+      payload: {'reminderId': reminderId, 'state': state},
+    ));
   }
 
   Future<SyncResult> flush() async {
@@ -53,16 +65,11 @@ class OfflineSyncService {
     final remaining = <PendingSyncEvent>[];
     final conflicts = <SyncConflict>[];
     var sent = 0;
-
     for (final event in pending) {
       try {
         final response = await api.post('/sync/push', event.toJson(), authenticated: true);
         if (response['conflict'] == true) {
-          conflicts.add(SyncConflict(
-            event: event,
-            reason: response['reason'] as String? ?? 'UNKNOWN_CONFLICT',
-            serverVersion: (response['serverVersion'] as num?)?.toInt(),
-          ));
+          conflicts.add(SyncConflict(event: event, reason: response['reason'] as String? ?? 'UNKNOWN_CONFLICT', serverVersion: (response['serverVersion'] as num?)?.toInt()));
           remaining.add(event);
         } else if (response['accepted'] == true || response['duplicate'] == true) {
           sent++;
@@ -73,7 +80,6 @@ class OfflineSyncService {
         remaining.add(event);
       }
     }
-
     await store.replaceQueue(remaining);
     return SyncResult(sent: sent, remaining: remaining.length, conflicts: conflicts);
   }
