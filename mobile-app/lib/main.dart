@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'core/api_client.dart';
+import 'core/offline_store.dart';
 import 'core/session_store.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
@@ -58,6 +59,7 @@ class _PetHealthAppState extends State<PetHealthApp> {
 
   Future<void> _logout() async {
     await _auth.logout();
+    await OfflineStore().clearAccountScopedData();
     if (!mounted) return;
     setState(() => _authenticated = false);
   }
