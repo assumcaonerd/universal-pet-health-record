@@ -3,6 +3,7 @@ import '../core/api_client.dart';
 import '../models/pet.dart';
 import 'pet_detail_screen.dart';
 import 'pet_form_screen.dart';
+import 'security_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.api, required this.onLogout});
@@ -41,7 +42,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Meus pets'), actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh)), IconButton(onPressed: widget.onLogout, icon: const Icon(Icons.logout))]),
+      appBar: AppBar(title: const Text('Meus pets'), actions: [
+        IconButton(tooltip: 'Segurança da conta', onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SecurityScreen(api: widget.api))), icon: const Icon(Icons.shield_outlined)),
+        IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
+        IconButton(onPressed: widget.onLogout, icon: const Icon(Icons.logout)),
+      ]),
       floatingActionButton: FloatingActionButton.extended(onPressed: _addPet, icon: const Icon(Icons.add), label: const Text('Adicionar pet')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
