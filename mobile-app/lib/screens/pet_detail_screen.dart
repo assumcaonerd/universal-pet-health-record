@@ -5,6 +5,7 @@ import '../models/clinical_models.dart';
 import '../models/pet.dart';
 import '../services/clinical_service.dart';
 import 'allergy_form_screen.dart';
+import 'clinical_documents_screen.dart';
 import 'pet_edit_screen.dart';
 import 'pet_share_screen.dart';
 
@@ -42,6 +43,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
 
   Future<void> _edit() async { final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => PetEditScreen(api: widget.api, pet: widget.pet))); if (changed == true && mounted) Navigator.of(context).pop(true); }
   Future<void> _share() async { await Navigator.of(context).push(MaterialPageRoute(builder: (_) => PetShareScreen(api: widget.api, pet: widget.pet))); }
+  Future<void> _documents() async { await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ClinicalDocumentsScreen(api: widget.api, pet: widget.pet, records: _records))); }
   Future<void> _addAllergy() async { final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => AllergyFormScreen(api: widget.api, petId: widget.pet.id))); if (changed == true) { await _loadAllergies(); if (mounted) setState(() {}); } }
 
   Future<void> _deactivateAllergy(Allergy allergy) async {
@@ -67,6 +69,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     final inactiveAllergies = _allergies.where((a) => !a.active).toList();
     return Scaffold(
       appBar: AppBar(title: Text(pet.name), actions: [
+        IconButton(onPressed: _documents, tooltip: 'Exames e documentos', icon: const Icon(Icons.folder_copy_outlined)),
         IconButton(onPressed: _share, tooltip: 'Compartilhar prontuário', icon: const Icon(Icons.qr_code_2)),
         IconButton(onPressed: _loadAll, tooltip: 'Atualizar prontuário', icon: const Icon(Icons.refresh)),
         PopupMenuButton<String>(onSelected: (value) { if (value == 'edit') _edit(); if (value == 'delete') _delete(); }, itemBuilder: (_) => const [PopupMenuItem(value: 'edit', child: Text('Editar cadastro')), PopupMenuItem(value: 'delete', child: Text('Excluir pet'))]),
