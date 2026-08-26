@@ -1,5 +1,6 @@
 import 'package:uuid/uuid.dart';
 import '../core/api_client.dart';
+import '../models/adherence_summary.dart';
 import '../models/care_reminder.dart';
 
 class AdherenceService {
@@ -18,5 +19,8 @@ class AdherenceService {
     }, authenticated: true);
   }
 
-  Future<Map<String, dynamic>> summary(String petId, String prescriptionId) => api.getObject('/pets/$petId/prescriptions/$prescriptionId/adherence');
+  Future<AdherenceSummary> summary(String petId, String prescriptionId) async {
+    final json = await api.getObject('/pets/$petId/prescriptions/$prescriptionId/adherence');
+    return AdherenceSummary.fromJson(json);
+  }
 }
