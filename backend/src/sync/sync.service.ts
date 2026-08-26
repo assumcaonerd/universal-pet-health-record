@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushSyncEventDto } from './dto/push-sync-event.dto';
@@ -14,6 +14,21 @@ export class SyncService {
     for (const key of allowed) if (Object.prototype.hasOwnProperty.call(payload, key)) patch[key] = payload[key];
     if (typeof patch.birthDate === 'string') patch.birthDate = new Date(patch.birthDate);
     return patch;
+  }
+
+  private encodeCursor(createdAt: Date, id: string) {
+    return Buffer.from(JSON.stringify({ createdAt: createdAt.toISOString(), id }), 'utf8').toString('base64url');
+  }
+
+  private decodeCursor(cursor: string) {
+    try {
+      const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as { createdAt?: string; id?: string };
+      const createdAt = parsed.createdAt ? new Date(parsed.createdAt) : null;
+      if (!createdAt || Number.isNaN(createdAt.getTime()) || typeof parsed.id !== 'string' || parsed.id.length === 0) throw new Error('invalid');
+      return { createdAt, id: parsed.id };
+    } catch {
+      throw new BadRequestException('Invalid sync cursor');
+    }
   }
 
   async push(userId: string, dto: PushSyncEventDto) {
@@ -104,7 +119,33 @@ export class SyncService {
     }
   }
 
-  pull(userId: string, after?: Date) {
-    return this.prisma.syncEvent.findMany({ where: { userId, createdAt: after ? { gt: after } : undefined }, orderBy: { createdAt: 'asc' }, take: 500 });
+  async pullPage(userId: string, options: { cursor?: string; limit: number; after?: Date }) {
+    const decoded = options.cursor ? this.decodeCursor(options.cursor) : null;
+    const where: Prisma.SyncEventWhereInput = { userId };
+
+    if (decoded) {
+      where.OR = [
+        { createdAt: { gt: decoded.createdAt } },
+        { createdAt: decoded.createdAt, id: { gt: decoded.id } },
+      ];
+    } else if (options.after) {
+      where.createdAt = { gt: options.after };
+    }
+
+    const rows = await this.prisma.syncEvent.findMany({
+      where,
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: options.limit + 1,
+    });
+
+    const hasMore = rows.length > options.limit;
+    const items = hasMore ? rows.slice(0, options.limit) : rows;
+    const last = items.at(-1);
+
+    return {
+      items,
+      nextCursor: hasMore && last ? this.encodeCursor(last.createdAt, last.id) : null,
+      hasMore,
+    };
   }
 }
