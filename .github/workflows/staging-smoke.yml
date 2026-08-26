@@ -1,0 +1,42 @@
+name: Staging Smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify staging API
+        working-directory: backend
+        env:
+          STAGING_API_URL: ${{ vars.STAGING_API_URL }}
+        run: node scripts/staging-smoke.mjs
+
+  mobile-staging-build:
+    runs-on: ubuntu-latest
+    environment: staging
+    defaults:
+      run:
+        working-directory: mobile-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build Android staging APK
+        env:
+          STAGING_API_URL: ${{ vars.STAGING_API_URL }}
+        run: flutter build apk --debug --dart-define=API_BASE_URL=${STAGING_API_URL}/api
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pet-health-staging-apk
+          path: mobile-app/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
