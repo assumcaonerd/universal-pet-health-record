@@ -165,6 +165,7 @@ model MedicalRecord {
   treatment      String?
   notes          String?
   occurredAt     DateTime
+  followUpAt     DateTime?
   createdAt      DateTime               @default(now())
   currentVersion Int                    @default(1)
   pet            Pet                    @relation(fields: [petId], references: [id], onDelete: Cascade)
@@ -218,6 +219,9 @@ model Prescription {
   frequency       String
   duration        String?
   instructions    String?
+  startsAt        DateTime?
+  endsAt          DateTime?
+  intervalMinutes Int?
   prescribedAt    DateTime       @default(now())
   createdAt       DateTime       @default(now())
   pet             Pet            @relation(fields: [petId], references: [id], onDelete: Cascade)
