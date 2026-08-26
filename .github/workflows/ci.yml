@@ -9,9 +9,27 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: petrecord
+          POSTGRES_PASSWORD: petrecord
+          POSTGRES_DB: petrecord
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U petrecord -d petrecord"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
     defaults:
       run:
         working-directory: backend
+    env:
+      DATABASE_URL: postgresql://petrecord:petrecord@localhost:5432/petrecord?schema=public
+      JWT_SECRET: test-secret-with-sufficient-length
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,13 +39,9 @@ jobs:
           cache-dependency-path: backend/package.json
       - run: npm install
       - run: npx prisma validate
-        env:
-          DATABASE_URL: postgresql://petrecord:petrecord@localhost:5432/petrecord?schema=public
+      - run: npx prisma migrate deploy
       - run: npm test
       - run: npm run test:e2e
-        env:
-          JWT_SECRET: test-secret-with-sufficient-length
-          DATABASE_URL: postgresql://petrecord:petrecord@localhost:5432/petrecord?schema=public
       - run: npm run build
       - run: docker build -t universal-pet-health-record-backend .
 
