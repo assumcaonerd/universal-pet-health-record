@@ -1,16 +1,6 @@
 CREATE TYPE "MembershipRole" AS ENUM ('ADMIN', 'VETERINARIAN', 'STAFF');
 CREATE TYPE "VerificationStatus" AS ENUM ('PENDING', 'VERIFIED', 'REJECTED');
 
-CREATE TABLE "Organization" (
-  "id" TEXT PRIMARY KEY,
-  "name" TEXT NOT NULL,
-  "registrationNumber" TEXT,
-  "city" TEXT,
-  "state" TEXT,
-  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMP(3) NOT NULL
-);
-
 CREATE TABLE "OrganizationMembership" (
   "id" TEXT PRIMARY KEY,
   "organizationId" TEXT NOT NULL,
