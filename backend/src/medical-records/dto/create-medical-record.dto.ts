@@ -1,6 +1,11 @@
-import { IsDateString, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsDateString, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 export class CreateMedicalRecordDto {
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(20)
+  accessToken!: string;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(80)
