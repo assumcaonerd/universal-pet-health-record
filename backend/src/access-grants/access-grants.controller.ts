@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { VerifiedEmailGuard } from '../auth/verified-email.guard';
 import { AccessGrantsService } from './access-grants.service';
 import { CreateAccessGrantDto } from './dto/create-access-grant.dto';
 
@@ -8,7 +9,7 @@ export class AccessGrantsController {
   constructor(private readonly grants: AccessGrantsService) {}
 
   @Post('pets/:petId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedEmailGuard)
   create(@Req() req: any, @Param('petId') petId: string, @Body() dto: CreateAccessGrantDto) {
     return this.grants.create(req.user.sub, petId, dto);
   }
@@ -19,7 +20,7 @@ export class AccessGrantsController {
   }
 
   @Delete(':grantId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedEmailGuard)
   revoke(@Req() req: any, @Param('grantId') grantId: string) {
     return this.grants.revoke(req.user.sub, grantId);
   }
