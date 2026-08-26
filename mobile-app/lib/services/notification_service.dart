@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 import '../models/care_reminder.dart';
+import 'reminder_state_service.dart';
 
 class NotificationPreferences {
   const NotificationPreferences({this.vaccines = true, this.medications = true, this.followUps = true, this.advanceHours = 24});
@@ -13,12 +14,7 @@ class NotificationPreferences {
   final int advanceHours;
 
   Map<String, dynamic> toJson() => {'vaccines': vaccines, 'medications': medications, 'followUps': followUps, 'advanceHours': advanceHours};
-  factory NotificationPreferences.fromJson(Map<String, dynamic> json) => NotificationPreferences(
-    vaccines: json['vaccines'] as bool? ?? true,
-    medications: json['medications'] as bool? ?? true,
-    followUps: json['followUps'] as bool? ?? true,
-    advanceHours: (json['advanceHours'] as num?)?.toInt() ?? 24,
-  );
+  factory NotificationPreferences.fromJson(Map<String, dynamic> json) => NotificationPreferences(vaccines: json['vaccines'] as bool? ?? true, medications: json['medications'] as bool? ?? true, followUps: json['followUps'] as bool? ?? true, advanceHours: (json['advanceHours'] as num?)?.toInt() ?? 24);
 }
 
 class NotificationService {
@@ -44,31 +40,25 @@ class NotificationService {
 
   Future<void> savePreferences(NotificationPreferences prefs) => _storage.write(key: _prefsKey, value: jsonEncode(prefs.toJson()));
 
-  bool _enabled(CareReminder item, NotificationPreferences prefs) {
-    return switch (item.kind) {
-      CareReminderKind.vaccine => prefs.vaccines,
-      CareReminderKind.medication => prefs.medications,
-      CareReminderKind.followUp => prefs.followUps,
-    };
-  }
+  bool _enabled(CareReminder item, NotificationPreferences prefs) => switch (item.kind) { CareReminderKind.vaccine => prefs.vaccines, CareReminderKind.medication => prefs.medications, CareReminderKind.followUp => prefs.followUps };
 
   Future<void> reschedule(List<CareReminder> reminders) async {
     final prefs = await preferences();
+    final states = await ReminderStateService(storage: _storage).all();
     await _plugin.cancelAll();
     final now = DateTime.now();
     for (final item in reminders.take(128)) {
       if (!_enabled(item, prefs)) continue;
-      final when = item.dueAt.subtract(Duration(hours: prefs.advanceHours));
+      final state = states[item.id];
+      if (state?.completed == true) continue;
+      final when = state?.snoozedUntil ?? item.dueAt.subtract(Duration(hours: prefs.advanceHours));
       if (!when.isAfter(now)) continue;
       await _plugin.zonedSchedule(
         item.id.hashCode & 0x7fffffff,
         item.petName,
         item.title,
         tz.TZDateTime.from(when, tz.local),
-        const NotificationDetails(
-          android: AndroidNotificationDetails('care_reminders', 'Cuidados do pet', channelDescription: 'Vacinas, medicamentos e retornos veterinários', importance: Importance.high, priority: Priority.high),
-          iOS: DarwinNotificationDetails(),
-        ),
+        const NotificationDetails(android: AndroidNotificationDetails('care_reminders', 'Cuidados do pet', channelDescription: 'Vacinas, medicamentos e retornos veterinários', importance: Importance.high, priority: Priority.high), iOS: DarwinNotificationDetails()),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         payload: '${item.petId}|${item.kind.name}|${item.sourceId}',
       );
