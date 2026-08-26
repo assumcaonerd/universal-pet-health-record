@@ -14,7 +14,7 @@ describe('AuthService', () => {
   let service: AuthService;
   const users = { create: jest.fn(), findByEmail: jest.fn() };
   const jwt = { signAsync: jest.fn().mockResolvedValue('token') };
-  const prisma = {
+  const prisma: any = {
     authSession: {
       create: jest.fn(),
       findFirst: jest.fn(),
@@ -27,7 +27,7 @@ describe('AuthService', () => {
     passwordResetToken: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     user: { update: jest.fn() },
     auditEvent: { create: jest.fn() },
-    $transaction: jest.fn(async (value: any) => {
+    $transaction: jest.fn(async (value: any): Promise<any> => {
       if (typeof value === 'function') return value(prisma);
       return Promise.all(value);
     }),
