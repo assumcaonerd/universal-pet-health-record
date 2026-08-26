@@ -16,14 +16,20 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
-  final _mfa = TextEditingController();
+  final _secondFactor = TextEditingController();
   bool _loading = false;
   String? _error;
 
   Future<void> _submit() async {
     setState(() { _loading = true; _error = null; });
+    final factor = _secondFactor.text.trim().toUpperCase();
     try {
-      await widget.authService.login(email: _email.text.trim(), password: _password.text, mfaCode: _mfa.text.trim());
+      await widget.authService.login(
+        email: _email.text.trim(),
+        password: _password.text,
+        mfaCode: RegExp(r'^\d{6}$').hasMatch(factor) ? factor : null,
+        recoveryCode: RegExp(r'^[A-Z0-9]{4}-[A-Z0-9]{4}$').hasMatch(factor) ? factor : null,
+      );
       widget.onAuthenticated();
     } on ApiException catch (e) {
       setState(() => _error = e.message);
@@ -56,7 +62,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 16),
                   TextField(controller: _password, obscureText: true, decoration: const InputDecoration(labelText: 'Senha')),
                   const SizedBox(height: 16),
-                  TextField(controller: _mfa, keyboardType: TextInputType.number, maxLength: 9, decoration: const InputDecoration(labelText: 'Código MFA ou recuperação', counterText: '')),
+                  TextField(
+                    controller: _secondFactor,
+                    textCapitalization: TextCapitalization.characters,
+                    maxLength: 9,
+                    decoration: const InputDecoration(labelText: 'MFA ou código de recuperação', hintText: '123456 ou ABCD-1234', counterText: ''),
+                  ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
