@@ -30,6 +30,10 @@ export class CreateMedicalRecordDto {
   occurredAt!: string;
 
   @IsOptional()
+  @IsDateString()
+  followUpAt?: string;
+
+  @IsOptional()
   @IsUUID()
   organizationId?: string;
 }
