@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { UpdatePetDto } from './dto/update-pet.dto';
@@ -51,9 +52,9 @@ export class PetsService {
     return { deleted: true };
   }
 
-  private audit(actorId: string, action: string, entityId: string, metadata?: Record<string, unknown>) {
+  private audit(actorId: string, action: string, entityId: string, metadata?: Prisma.InputJsonValue) {
     return this.prisma.auditEvent.create({
-      data: { actorId, action, entityType: 'Pet', entityId, metadata: metadata ?? undefined },
+      data: { actorId, action, entityType: 'Pet', entityId, metadata },
     });
   }
 }
