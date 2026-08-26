@@ -17,6 +17,16 @@ class Prescription {
         instructions: json['instructions'] as String?,
         prescribedAt: DateTime.tryParse(json['prescribedAt'] as String? ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0),
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'medication': medication,
+        'dosage': dosage,
+        'frequency': frequency,
+        'duration': duration,
+        'instructions': instructions,
+        'prescribedAt': prescribedAt.toIso8601String(),
+      };
 }
 
 class Allergy {
@@ -36,6 +46,15 @@ class Allergy {
         active: json['active'] as bool? ?? true,
         createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0),
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'allergen': allergen,
+        'reaction': reaction,
+        'severity': severity,
+        'active': active,
+        'createdAt': createdAt.toIso8601String(),
+      };
 }
 
 class MedicalRecordVersion {
@@ -55,6 +74,15 @@ class MedicalRecordVersion {
         reason: json['reason'] as String?,
         createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0),
       );
+
+  Map<String, dynamic> toJson() => {
+        'version': version,
+        'diagnosis': diagnosis,
+        'treatment': treatment,
+        'notes': notes,
+        'reason': reason,
+        'createdAt': createdAt.toIso8601String(),
+      };
 }
 
 class MedicalRecord {
@@ -76,6 +104,17 @@ class MedicalRecord {
         notes: json['notes'] as String?,
         occurredAt: DateTime.tryParse(json['occurredAt'] as String? ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0),
         currentVersion: json['currentVersion'] as int? ?? 1,
-        versions: (json['versions'] as List<dynamic>? ?? const []).map((e) => MedicalRecordVersion.fromJson(e as Map<String, dynamic>)).toList(),
+        versions: (json['versions'] as List<dynamic>? ?? const []).map((e) => MedicalRecordVersion.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
       );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'type': type,
+        'diagnosis': diagnosis,
+        'treatment': treatment,
+        'notes': notes,
+        'occurredAt': occurredAt.toIso8601String(),
+        'currentVersion': currentVersion,
+        'versions': versions.map((e) => e.toJson()).toList(),
+      };
 }
