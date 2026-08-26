@@ -52,7 +52,7 @@ class _AllergyFormScreenState extends State<AllergyFormScreen> {
       const SizedBox(height: 16),
       TextFormField(controller: _reaction, maxLines: 3, decoration: const InputDecoration(labelText: 'Reação observada (opcional)')),
       const SizedBox(height: 16),
-      DropdownButtonFormField<String>(value: _severity, decoration: const InputDecoration(labelText: 'Gravidade'), items: const [DropdownMenuItem(value: 'MILD', child: Text('Leve')), DropdownMenuItem(value: 'MODERATE', child: Text('Moderada')), DropdownMenuItem(value: 'SEVERE', child: Text('Grave')), DropdownMenuItem(value: 'LIFE_THREATENING', child: Text('Risco de vida'))], onChanged: (v) => setState(() => _severity = v ?? 'MODERATE')),
+      DropdownButtonFormField<String>(initialValue: _severity, decoration: const InputDecoration(labelText: 'Gravidade'), items: const [DropdownMenuItem(value: 'MILD', child: Text('Leve')), DropdownMenuItem(value: 'MODERATE', child: Text('Moderada')), DropdownMenuItem(value: 'SEVERE', child: Text('Grave')), DropdownMenuItem(value: 'LIFE_THREATENING', child: Text('Risco de vida'))], onChanged: (v) => setState(() => _severity = v ?? 'MODERATE')),
       if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
       const SizedBox(height: 24),
       FilledButton.icon(onPressed: _saving ? null : _save, icon: const Icon(Icons.health_and_safety), label: Text(_saving ? 'Salvando...' : 'Registrar alergia')),
