@@ -43,6 +43,9 @@ Aplicativo Flutter do tutor para gerenciar o prontuário de saúde do pet.
 - listagem de exames e documentos por pet
 - download/visualização por URL temporária autorizada pelo backend
 - cache local protegido da lista de pets
+- cache local protegido do prontuário clínico essencial por pet
+- leitura offline de vacinas, prescrições, alergias e histórico clínico recente
+- indicação da data/hora da última cópia clínica salva no aparelho
 - edição de pet em modo offline com fila idempotente
 - identidade persistente do dispositivo para sincronização
 - envio automático da fila ao recuperar conectividade
@@ -52,7 +55,7 @@ Aplicativo Flutter do tutor para gerenciar o prontuário de saúde do pet.
 - carregamento independente de cada seção clínica para reduzir impacto de falhas parciais
 - tratamento de erros da API
 - tema Material 3
-- testes de modelos clínicos e de anexos
+- testes de modelos clínicos, anexos e snapshot clínico offline
 
 ## Fluxo seguro de documentos
 
@@ -68,7 +71,11 @@ O arquivo pode ficar no prontuário geral do pet ou ser vinculado a um `MedicalR
 
 ## Offline-first e conflitos
 
-A lista de pets e a fila de alterações ficam no armazenamento seguro do sistema. Cada evento recebe um `clientEventId` UUID e um `deviceId` persistente. Quando uma edição de pet não consegue alcançar a API, o app atualiza o cache local e guarda um evento `UPDATE` para envio posterior.
+A lista de pets, o prontuário clínico essencial e a fila de alterações ficam no armazenamento seguro do sistema. Cada evento recebe um `clientEventId` UUID e um `deviceId` persistente. Quando uma edição de pet não consegue alcançar a API, o app atualiza o cache local e guarda um evento `UPDATE` para envio posterior.
+
+Depois de uma leitura clínica online bem-sucedida, o aplicativo salva uma fotografia local contendo vacinação, prescrições, alergias e histórico clínico. Se essas chamadas falharem posteriormente, o perfil do pet recupera essa cópia e mostra claramente que está em modo offline, inclusive com a data e hora em que os dados foram salvos.
+
+Ações que dependem de autorização online, como gerar QR, abrir documentos por URL temporária ou alterar dados clínicos, permanecem bloqueadas durante o modo offline. Isso evita simular operações clínicas que o backend não poderia validar naquele momento.
 
 Ao recuperar conexão, a fila é enviada para `/sync/push`. O backend compara a versão local com a versão corrente e pode responder com conflitos como `STALE_VERSION`, `VERSION_GAP`, `CONCURRENT_VERSION` ou `OPTIMISTIC_LOCK_FAILED`.
 
@@ -83,7 +90,7 @@ Nenhum conflito é resolvido automaticamente por sobrescrita silenciosa.
 
 O tutor pode consultar prescrições e histórico clínico, mas registros profissionais continuam sujeitos às regras do backend. Criação de prontuário, vacinação e prescrição exige profissional veterinário verificado e autorização clínica válida quando aplicável.
 
-Alergias podem ser informadas pelo próprio tutor. Quando uma alergia deixa de ser vigente, ela é marcada como inativa em vez de ser apagada, preservando o histórico.
+Alergias podem ser informadas pelo próprio tutor quando houver conexão com a API. Quando uma alergia deixa de ser vigente, ela é marcada como inativa em vez de ser apagada, preservando o histórico.
 
 Emendas do prontuário não substituem silenciosamente versões anteriores. A interface exibe o número da versão atual e permite consultar versões anteriores quando existentes.
 
@@ -112,8 +119,8 @@ flutter run
 
 ## Próximos passos
 
-1. cache offline do prontuário clínico essencial, além do cadastro do pet
-2. sincronização de entidades clínicas permitidas ao tutor
-3. notificações de vacinas, medicamentos e eventos importantes
-4. acessibilidade, internacionalização e design system
-5. telemetria de erros sem conteúdo clínico sensível
+1. sincronização offline de entidades clínicas explicitamente permitidas ao tutor
+2. notificações de vacinas, medicamentos e eventos importantes
+3. acessibilidade, internacionalização e design system
+4. telemetria de erros sem conteúdo clínico sensível
+5. política de retenção e limpeza seletiva do cache local
