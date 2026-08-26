@@ -6,6 +6,7 @@ import '../services/offline_sync_service.dart';
 import 'pet_detail_screen.dart';
 import 'pet_form_screen.dart';
 import 'security_screen.dart';
+import 'sync_conflict_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.api, required this.onLogout});
@@ -23,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _pending = 0;
   String? _error;
   List<Pet> _pets = const [];
+  List<SyncConflict> _conflicts = const [];
 
   @override
   void initState() { super.initState(); _load(); }
@@ -34,7 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final raw = await widget.api.getList('/pets');
       final pets = raw.map((e) => Pet.fromJson(e as Map<String, dynamic>)).toList();
       await _offline.savePets(pets);
-      if (mounted) setState(() { _pets = pets; _offlineMode = false; _pending = sync.remaining; });
+      if (mounted) setState(() { _pets = pets; _offlineMode = false; _pending = sync.remaining; _conflicts = sync.conflicts; });
     } catch (_) {
       final cached = await _offline.loadPets();
       final queue = await _offline.queue();
@@ -47,6 +49,12 @@ class _HomeScreenState extends State<HomeScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _openConflicts() async {
+    if (_conflicts.isEmpty) return;
+    final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => SyncConflictScreen(api: widget.api, store: _offline, conflicts: _conflicts)));
+    if (changed == true) await _load();
   }
 
   Future<void> _addPet() async {
@@ -64,7 +72,11 @@ class _HomeScreenState extends State<HomeScreen> {
       ]),
       floatingActionButton: FloatingActionButton.extended(onPressed: _offlineMode ? null : _addPet, icon: const Icon(Icons.add), label: const Text('Adicionar pet')),
       body: Column(children: [
-        if (_offlineMode || _pending > 0) MaterialBanner(
+        if (_conflicts.isNotEmpty) MaterialBanner(
+          content: Text('${_conflicts.length} conflito(s) de sincronização precisam da sua escolha.'),
+          leading: const Icon(Icons.warning_amber_rounded),
+          actions: [TextButton(onPressed: _openConflicts, child: const Text('Resolver agora'))],
+        ) else if (_offlineMode || _pending > 0) MaterialBanner(
           content: Text(_offlineMode ? 'Modo offline. Exibindo dados protegidos salvos neste aparelho.${_pending > 0 ? ' $_pending alteração(ões) aguardando sincronização.' : ''}' : '$_pending alteração(ões) aguardando sincronização.'),
           leading: Icon(_offlineMode ? Icons.cloud_off : Icons.sync_problem),
           actions: [TextButton(onPressed: _load, child: const Text('Tentar sincronizar'))],
