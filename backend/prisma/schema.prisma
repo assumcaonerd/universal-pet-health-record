@@ -27,15 +27,29 @@ enum AccessLevel {
   WRITE
 }
 
+enum MembershipRole {
+  ADMIN
+  VETERINARIAN
+  STAFF
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  name         String
-  passwordHash String
-  role         UserRole @default(OWNER)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  pets         Pet[]    @relation("PrimaryOwner")
+  id                    String                   @id @default(uuid())
+  email                 String                   @unique
+  name                  String
+  passwordHash          String
+  role                  UserRole                 @default(OWNER)
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  pets                  Pet[]                    @relation("PrimaryOwner")
+  memberships           OrganizationMembership[]
+  professionalProfile   ProfessionalProfile?
 }
 
 model Pet {
@@ -102,4 +116,41 @@ model AuditEvent {
   entityId   String
   metadata   Json?
   createdAt  DateTime @default(now())
+}
+
+model Organization {
+  id                 String                   @id @default(uuid())
+  name               String
+  registrationNumber String?
+  city               String?
+  state              String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  memberships        OrganizationMembership[]
+}
+
+model OrganizationMembership {
+  id             String         @id @default(uuid())
+  organizationId String
+  userId         String
+  role           MembershipRole
+  createdAt      DateTime       @default(now())
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+}
+
+model ProfessionalProfile {
+  id                 String             @id @default(uuid())
+  userId             String             @unique
+  licenseNumber      String
+  licenseState       String
+  specialty          String?
+  verificationStatus VerificationStatus @default(PENDING)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([licenseNumber, licenseState])
 }
