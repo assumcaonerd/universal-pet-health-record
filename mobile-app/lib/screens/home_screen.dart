@@ -3,6 +3,7 @@ import '../core/api_client.dart';
 import '../core/offline_store.dart';
 import '../models/pet.dart';
 import '../services/offline_sync_service.dart';
+import '../services/reminder_state_service.dart';
 import 'pet_detail_screen.dart';
 import 'pet_form_screen.dart';
 import 'reminders_screen.dart';
@@ -24,7 +25,22 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Pet> _pets = const [];
   List<SyncConflict> _conflicts = const [];
   @override void initState() { super.initState(); _load(); }
-  Future<void> _load() async { setState(() { _loading = true; _error = null; }); try { final sync = await OfflineSyncService(widget.api, _offline).flush(); final raw = await widget.api.getList('/pets'); final pets = raw.map((e) => Pet.fromJson(e as Map<String, dynamic>)).toList(); await _offline.savePets(pets); if (mounted) setState(() { _pets = pets; _offlineMode = false; _pending = sync.remaining; _conflicts = sync.conflicts; }); } catch (_) { final cached = await _offline.loadPets(); final queue = await _offline.queue(); if (mounted) setState(() { _pets = cached; _offlineMode = true; _pending = queue.length; if (cached.isEmpty) _error = 'Sem conexão e ainda não há prontuário salvo neste aparelho.'; }); } finally { if (mounted) setState(() => _loading = false); } }
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      final syncService = OfflineSyncService(widget.api, _offline);
+      final sync = await syncService.flush();
+      await syncService.restoreReminderStates(ReminderStateService(offline: _offline));
+      final raw = await widget.api.getList('/pets');
+      final pets = raw.map((e) => Pet.fromJson(e as Map<String, dynamic>)).toList();
+      await _offline.savePets(pets);
+      if (mounted) setState(() { _pets = pets; _offlineMode = false; _pending = sync.remaining; _conflicts = sync.conflicts; });
+    } catch (_) {
+      final cached = await _offline.loadPets();
+      final queue = await _offline.queue();
+      if (mounted) setState(() { _pets = cached; _offlineMode = true; _pending = queue.length; if (cached.isEmpty) _error = 'Sem conexão e ainda não há prontuário salvo neste aparelho.'; });
+    } finally { if (mounted) setState(() => _loading = false); }
+  }
   Future<void> _openConflicts() async { if (_conflicts.isEmpty) return; final changed = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => SyncConflictScreen(api: widget.api, store: _offline, conflicts: _conflicts))); if (changed == true) await _load(); }
   Future<void> _addPet() async { final created = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => PetFormScreen(api: widget.api))); if (created == true) await _load(); }
   void _openReminders() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RemindersScreen(pets: _pets, api: widget.api)));
