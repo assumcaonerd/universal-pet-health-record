@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: petrecord
+      POSTGRES_PASSWORD: petrecord
+      POSTGRES_DB: petrecord
+    ports:
+      - "5432:5432"
+    volumes:
+      - petrecord_pgdata:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://petrecord:petrecord@postgres:5432/petrecord?schema=public
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+
+volumes:
+  petrecord_pgdata:

@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  VETERINARIAN
+  STAFF
+  ADMIN
+}
+
+enum PetSpecies {
+  DOG
+  CAT
+  BIRD
+  RABBIT
+  OTHER
+}
+
+enum AccessLevel {
+  READ
+  WRITE
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  role      UserRole
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  pets      Pet[]    @relation("PrimaryOwner")
+}
+
+model Pet {
+  id             String      @id @default(uuid())
+  name           String
+  species        PetSpecies
+  breed          String?
+  birthDate      DateTime?
+  microchip      String?     @unique
+  primaryOwnerId String
+  primaryOwner   User        @relation("PrimaryOwner", fields: [primaryOwnerId], references: [id])
+  version        Int         @default(1)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  records        MedicalRecord[]
+  vaccinations   Vaccination[]
+  accessGrants   AccessGrant[]
+}
+
+model MedicalRecord {
+  id             String   @id @default(uuid())
+  petId          String
+  veterinarianId String
+  type           String
+  diagnosis      String?
+  treatment      String?
+  notes          String?
+  occurredAt     DateTime
+  createdAt      DateTime @default(now())
+  pet            Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+}
+
+model Vaccination {
+  id               String   @id @default(uuid())
+  petId            String
+  vaccineName      String
+  manufacturer     String?
+  batchNumber      String?
+  dateAdministered DateTime
+  nextDueDate      DateTime?
+  administeredBy   String?
+  createdAt        DateTime @default(now())
+  pet              Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+}
+
+model AccessGrant {
+  id        String      @id @default(uuid())
+  tokenHash String      @unique
+  petId     String
+  level     AccessLevel @default(READ)
+  expiresAt DateTime
+  maxUses   Int         @default(1)
+  uses      Int         @default(0)
+  revokedAt DateTime?
+  createdAt DateTime    @default(now())
+  pet       Pet         @relation(fields: [petId], references: [id], onDelete: Cascade)
+}
+
+model AuditEvent {
+  id         String   @id @default(uuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+}

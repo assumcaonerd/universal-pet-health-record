@@ -1,23 +1,45 @@
 # Backend - API Central
 
-API responsável por gerenciar o prontuário universal de saúde animal.
+Backend inicial do Universal Pet Health Record.
 
-## Stack sugerida
+## Stack definida
 
-- Node.js / Go / Python (a definir)
-- Banco de dados relacional + suporte a sincronização offline
-- Autenticação e autorização (tutores, veterinários, petshops)
+- Node.js 20
+- NestJS + TypeScript
+- PostgreSQL
+- Prisma ORM
+- Docker
 
-## Estrutura
+## Primeira fundação implementada
 
+- API NestJS executável
+- endpoint `GET /api/health`
+- Prisma configurado
+- modelos iniciais de User, Pet, MedicalRecord, Vaccination, AccessGrant e AuditEvent
+- Dockerfile multi-stage
+- docker-compose com PostgreSQL
+- teste unitário de health check
+- CI real com validação Prisma, testes, build e Docker build
+
+## Desenvolvimento local
+
+```bash
+cp .env.example .env
+npm install
+npx prisma generate
+npm run start:dev
 ```
-backend/
-├── src/
-└── Dockerfile
+
+Para subir banco + backend:
+
+```bash
+docker compose up --build
 ```
 
-## Próximos passos
+## Próximas etapas
 
-- Definir stack final
-- Implementar endpoints baseados nos schemas
-- Configurar autenticação e controle de acesso
+1. autenticação e autorização
+2. CRUD de pets
+3. versionamento/auditoria clínica
+4. QR temporário com permissões granulares
+5. sincronização offline-first
