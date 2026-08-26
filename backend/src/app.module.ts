@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AccessGrantsModule } from './access-grants/access-grants.module';
+import { AllergiesModule } from './allergies/allergies.module';
 import { AuthModule } from './auth/auth.module';
+import { ClinicalAttachmentsModule } from './clinical-attachments/clinical-attachments.module';
 import { HealthModule } from './health/health.module';
 import { MedicalRecordsModule } from './medical-records/medical-records.module';
 import { OrganizationsModule } from './organizations/organizations.module';
@@ -24,6 +26,8 @@ import { VaccinationsModule } from './vaccinations/vaccinations.module';
     MedicalRecordsModule,
     VaccinationsModule,
     PrescriptionsModule,
+    AllergiesModule,
+    ClinicalAttachmentsModule,
   ],
 })
 export class AppModule {}
