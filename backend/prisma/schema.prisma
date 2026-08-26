@@ -63,6 +63,7 @@ model User {
   prescriptions       Prescription[]           @relation("PrescriptionVeterinarian")
   allergiesAuthored   Allergy[]                @relation("AllergyAuthor")
   attachmentsAuthored ClinicalAttachment[]     @relation("AttachmentAuthor")
+  syncEvents          SyncEvent[]
 }
 
 model Pet {
@@ -207,6 +208,23 @@ model AuditEvent {
   entityId   String
   metadata   Json?
   createdAt  DateTime @default(now())
+}
+
+model SyncEvent {
+  id            String   @id @default(uuid())
+  clientEventId String   @unique
+  userId        String
+  deviceId      String
+  entityType    String
+  entityId      String
+  operation     String
+  version       Int?
+  payload       Json?
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
 }
 
 model Organization {
