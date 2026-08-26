@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:uuid/uuid.dart';
 import '../core/api_client.dart';
 import '../core/offline_store.dart';
@@ -42,27 +43,58 @@ class OfflineSyncService {
     await store.enqueue(PendingSyncEvent(clientEventId: const Uuid().v4(), deviceId: deviceId, entityType: 'Allergy', entityId: allergyId, operation: 'DEACTIVATE', version: 1, payload: const {}));
   }
 
-  Future<void> restoreReminderStates(ReminderStateService states) async {
-    final events = await api.getList('/sync/pull');
-    final latest = <String, Map<String, dynamic>>{};
-    for (final raw in events) {
-      final event = Map<String, dynamic>.from(raw as Map);
-      if ((event['entityType'] as String?)?.toLowerCase() != 'reminderstate') continue;
-      final payload = event['payload'];
-      if (payload is! Map) continue;
-      final map = Map<String, dynamic>.from(payload);
-      final reminderId = map['reminderId'];
-      final state = map['state'];
-      if (reminderId is String && state is Map) latest[reminderId] = Map<String, dynamic>.from(state);
-    }
-    for (final entry in latest.entries) {
-      final state = entry.value;
-      if (state['reopened'] == true || (state['completedAt'] == null && state['snoozedUntil'] == null)) {
-        await states.applyRemote(entry.key, null);
-      } else {
-        await states.applyRemote(entry.key, ReminderState.fromJson(state));
+  String? _checkpointFromItems(List<dynamic> items) {
+    if (items.isEmpty) return null;
+    final last = Map<String, dynamic>.from(items.last as Map);
+    final createdAt = last['createdAt'];
+    final id = last['id'];
+    if (createdAt is! String || id is! String) return null;
+    final raw = utf8.encode(jsonEncode({'createdAt': createdAt, 'id': id}));
+    return base64Url.encode(raw).replaceAll('=', '');
+  }
+
+  Future<int> restoreReminderStates(ReminderStateService states) async {
+    var cursor = await store.syncCursor();
+    var applied = 0;
+
+    while (true) {
+      final query = cursor == null ? '/sync/pull?limit=100' : '/sync/pull?limit=100&cursor=${Uri.encodeQueryComponent(cursor)}';
+      final page = await api.getObject(query);
+      final items = page['items'] as List<dynamic>? ?? const [];
+      final latest = <String, Map<String, dynamic>>{};
+
+      for (final raw in items) {
+        final event = Map<String, dynamic>.from(raw as Map);
+        if ((event['entityType'] as String?)?.toLowerCase() != 'reminderstate') continue;
+        final payload = event['payload'];
+        if (payload is! Map) continue;
+        final map = Map<String, dynamic>.from(payload);
+        final reminderId = map['reminderId'];
+        final state = map['state'];
+        if (reminderId is String && state is Map) latest[reminderId] = Map<String, dynamic>.from(state);
       }
+
+      for (final entry in latest.entries) {
+        final state = entry.value;
+        if (state['reopened'] == true || (state['completedAt'] == null && state['snoozedUntil'] == null)) {
+          await states.applyRemote(entry.key, null);
+        } else {
+          await states.applyRemote(entry.key, ReminderState.fromJson(state));
+        }
+        applied++;
+      }
+
+      final checkpoint = page['nextCursor'] as String? ?? _checkpointFromItems(items);
+      if (checkpoint != null) {
+        await store.saveSyncCursor(checkpoint);
+        cursor = checkpoint;
+      }
+
+      final hasMore = page['hasMore'] == true;
+      if (!hasMore || items.isEmpty) break;
     }
+
+    return applied;
   }
 
   Future<SyncResult> flush() async {
