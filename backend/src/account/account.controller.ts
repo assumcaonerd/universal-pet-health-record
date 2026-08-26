@@ -20,6 +20,12 @@ export class AccountController {
     return this.account.requestEmailVerification(req.user.sub);
   }
 
+  @Get('security')
+  @UseGuards(JwtAuthGuard)
+  securitySummary(@Req() req: any) {
+    return this.account.getSecuritySummary(req.user.sub);
+  }
+
   @Get('mfa')
   @UseGuards(JwtAuthGuard)
   getMfaStatus(@Req() req: any) {
@@ -36,6 +42,12 @@ export class AccountController {
   @UseGuards(JwtAuthGuard, VerifiedEmailGuard)
   confirmMfa(@Req() req: any, @Body() dto: MfaCodeDto) {
     return this.account.confirmMfa(req.user.sub, dto.code);
+  }
+
+  @Post('mfa/recovery-codes/regenerate')
+  @UseGuards(JwtAuthGuard, VerifiedEmailGuard)
+  regenerateRecoveryCodes(@Req() req: any, @Body() dto: MfaCodeDto) {
+    return this.account.regenerateRecoveryCodes(req.user.sub, dto.code);
   }
 
   @Delete('mfa')
