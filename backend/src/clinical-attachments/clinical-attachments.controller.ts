@@ -19,6 +19,15 @@ export class ClinicalAttachmentsController {
     return this.attachments.createUploadIntent(req.user.sub, petId, dto);
   }
 
+  @Post(':attachmentId/download-intent')
+  createDownloadIntent(
+    @Req() req: any,
+    @Param('petId') petId: string,
+    @Param('attachmentId') attachmentId: string,
+  ) {
+    return this.attachments.createDownloadIntent(req.user.sub, petId, attachmentId);
+  }
+
   @Post('register')
   register(@Req() req: any, @Param('petId') petId: string, @Body() dto: RegisterClinicalAttachmentDto) {
     return this.attachments.register(req.user.sub, petId, dto);
