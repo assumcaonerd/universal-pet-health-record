@@ -2,6 +2,7 @@ import 'package:uuid/uuid.dart';
 import '../core/api_client.dart';
 import '../core/offline_store.dart';
 import '../models/pet.dart';
+import 'reminder_state_service.dart';
 
 class SyncConflict {
   const SyncConflict({required this.event, required this.reason, this.serverVersion});
@@ -25,25 +26,14 @@ class OfflineSyncService {
   Future<void> queuePetUpdate(Pet pet, Map<String, dynamic> payload) async {
     final deviceId = await store.deviceId();
     await store.enqueue(PendingSyncEvent(clientEventId: const Uuid().v4(), deviceId: deviceId, entityType: 'Pet', entityId: pet.id, operation: 'UPDATE', version: pet.version + 1, payload: payload));
-    final cached = Pet(
-      id: pet.id,
-      name: payload.containsKey('name') ? payload['name'] as String : pet.name,
-      species: payload.containsKey('species') ? payload['species'] as String : pet.species,
-      breed: payload.containsKey('breed') ? payload['breed'] as String? : pet.breed,
-      birthDate: payload.containsKey('birthDate') ? (payload['birthDate'] is String ? DateTime.tryParse(payload['birthDate'] as String) : null) : pet.birthDate,
-      microchip: payload.containsKey('microchip') ? payload['microchip'] as String? : pet.microchip,
-      version: pet.version + 1,
-    );
+    final cached = Pet(id: pet.id, name: payload.containsKey('name') ? payload['name'] as String : pet.name, species: payload.containsKey('species') ? payload['species'] as String : pet.species, breed: payload.containsKey('breed') ? payload['breed'] as String? : pet.breed, birthDate: payload.containsKey('birthDate') ? (payload['birthDate'] is String ? DateTime.tryParse(payload['birthDate'] as String) : null) : pet.birthDate, microchip: payload.containsKey('microchip') ? payload['microchip'] as String? : pet.microchip, version: pet.version + 1);
     await store.upsertCachedPet(cached);
   }
 
   Future<String> queueAllergyCreate(String petId, {required String allergen, String? reaction, required String severity}) async {
     final deviceId = await store.deviceId();
     final allergyId = const Uuid().v4();
-    await store.enqueue(PendingSyncEvent(
-      clientEventId: const Uuid().v4(), deviceId: deviceId, entityType: 'Allergy', entityId: allergyId, operation: 'CREATE', version: 1,
-      payload: {'petId': petId, 'allergen': allergen, 'reaction': reaction, 'severity': severity},
-    ));
+    await store.enqueue(PendingSyncEvent(clientEventId: const Uuid().v4(), deviceId: deviceId, entityType: 'Allergy', entityId: allergyId, operation: 'CREATE', version: 1, payload: {'petId': petId, 'allergen': allergen, 'reaction': reaction, 'severity': severity}));
     return allergyId;
   }
 
@@ -52,12 +42,27 @@ class OfflineSyncService {
     await store.enqueue(PendingSyncEvent(clientEventId: const Uuid().v4(), deviceId: deviceId, entityType: 'Allergy', entityId: allergyId, operation: 'DEACTIVATE', version: 1, payload: const {}));
   }
 
-  Future<void> queueReminderState(String reminderId, Map<String, dynamic> state) async {
-    final deviceId = await store.deviceId();
-    await store.enqueue(PendingSyncEvent(
-      clientEventId: const Uuid().v4(), deviceId: deviceId, entityType: 'ReminderState', entityId: const Uuid().v4(), operation: 'SET', version: 1,
-      payload: {'reminderId': reminderId, 'state': state},
-    ));
+  Future<void> restoreReminderStates(ReminderStateService states) async {
+    final events = await api.getList('/sync/pull');
+    final latest = <String, Map<String, dynamic>>{};
+    for (final raw in events) {
+      final event = Map<String, dynamic>.from(raw as Map);
+      if ((event['entityType'] as String?)?.toLowerCase() != 'reminderstate') continue;
+      final payload = event['payload'];
+      if (payload is! Map) continue;
+      final map = Map<String, dynamic>.from(payload);
+      final reminderId = map['reminderId'];
+      final state = map['state'];
+      if (reminderId is String && state is Map) latest[reminderId] = Map<String, dynamic>.from(state);
+    }
+    for (final entry in latest.entries) {
+      final state = entry.value;
+      if (state['reopened'] == true || (state['completedAt'] == null && state['snoozedUntil'] == null)) {
+        await states.applyRemote(entry.key, null);
+      } else {
+        await states.applyRemote(entry.key, ReminderState.fromJson(state));
+      }
+    }
   }
 
   Future<SyncResult> flush() async {
