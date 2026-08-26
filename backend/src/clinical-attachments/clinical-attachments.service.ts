@@ -1,10 +1,15 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../storage/storage.service';
+import { CreateUploadIntentDto } from './dto/create-upload-intent.dto';
 import { RegisterClinicalAttachmentDto } from './dto/register-clinical-attachment.dto';
 
 @Injectable()
 export class ClinicalAttachmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
 
   private async requireOwner(petId: string, userId: string) {
     const pet = await this.prisma.pet.findFirst({ where: { id: petId, primaryOwnerId: userId } });
@@ -16,12 +21,29 @@ export class ClinicalAttachmentsService {
     return this.prisma.clinicalAttachment.findMany({ where: { petId }, orderBy: { createdAt: 'desc' } });
   }
 
+  async createUploadIntent(userId: string, petId: string, dto: CreateUploadIntentDto) {
+    await this.requireOwner(petId, userId);
+    return this.storage.createPresignedUpload(petId, dto.fileName, dto.mimeType, dto.sha256);
+  }
+
   async register(userId: string, petId: string, dto: RegisterClinicalAttachmentDto) {
     await this.requireOwner(petId, userId);
+
+    if (!dto.storageKey.startsWith(`pets/${petId}/clinical/`)) {
+      throw new BadRequestException('Invalid storage key for pet');
+    }
 
     if (dto.medicalRecordId) {
       const record = await this.prisma.medicalRecord.findFirst({ where: { id: dto.medicalRecordId, petId } });
       if (!record) throw new ForbiddenException('Medical record does not belong to pet');
+    }
+
+    const verification = await this.storage.verifyObject(dto.storageKey, dto.sha256, dto.sizeBytes);
+    if (!verification.hashMatches || !verification.sizeMatches) {
+      throw new BadRequestException('Uploaded object integrity verification failed');
+    }
+    if (verification.contentType && verification.contentType !== dto.mimeType) {
+      throw new BadRequestException('Uploaded object content type does not match');
     }
 
     const attachment = await this.prisma.clinicalAttachment.create({
