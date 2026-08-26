@@ -7,48 +7,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  OWNER
-  VETERINARIAN
-  STAFF
-  ADMIN
-}
-
-enum PetSpecies {
-  DOG
-  CAT
-  BIRD
-  RABBIT
-  OTHER
-}
-
-enum AccessLevel {
-  READ
-  WRITE
-}
-
-enum MembershipRole {
-  ADMIN
-  VETERINARIAN
-  STAFF
-}
-
-enum VerificationStatus {
-  PENDING
-  VERIFIED
-  REJECTED
-}
-
-enum AllergySeverity {
-  MILD
-  MODERATE
-  SEVERE
-  LIFE_THREATENING
-}
+enum UserRole { OWNER VETERINARIAN STAFF ADMIN }
+enum PetSpecies { DOG CAT BIRD RABBIT OTHER }
+enum AccessLevel { READ WRITE }
+enum MembershipRole { ADMIN VETERINARIAN STAFF }
+enum VerificationStatus { PENDING VERIFIED REJECTED }
+enum AllergySeverity { MILD MODERATE SEVERE LIFE_THREATENING }
 
 model User {
   id                  String                   @id @default(uuid())
   email               String                   @unique
+  emailVerifiedAt     DateTime?
   name                String
   passwordHash        String
   role                UserRole                 @default(OWNER)
@@ -66,6 +35,7 @@ model User {
   syncEvents          SyncEvent[]
   sessions            AuthSession[]
   passwordResetTokens PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
 }
 
 model AuthSession {
@@ -80,7 +50,6 @@ model AuthSession {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   @@index([userId, revokedAt])
 }
 
@@ -92,207 +61,213 @@ model PasswordResetToken {
   usedAt    DateTime?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, expiresAt])
+}
 
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@index([userId, expiresAt])
 }
 
 model Pet {
-  id             String      @id @default(uuid())
-  name           String
-  species        PetSpecies
-  breed          String?
-  birthDate      DateTime?
-  microchip      String?     @unique
+  id String @id @default(uuid())
+  name String
+  species PetSpecies
+  breed String?
+  birthDate DateTime?
+  microchip String? @unique
   primaryOwnerId String
-  primaryOwner   User        @relation("PrimaryOwner", fields: [primaryOwnerId], references: [id])
-  version        Int         @default(1)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
-  records        MedicalRecord[]
-  vaccinations   Vaccination[]
-  prescriptions  Prescription[]
-  allergies      Allergy[]
-  attachments    ClinicalAttachment[]
-  accessGrants   AccessGrant[]
+  primaryOwner User @relation("PrimaryOwner", fields: [primaryOwnerId], references: [id])
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  records MedicalRecord[]
+  vaccinations Vaccination[]
+  prescriptions Prescription[]
+  allergies Allergy[]
+  attachments ClinicalAttachment[]
+  accessGrants AccessGrant[]
 }
 
 model MedicalRecord {
-  id             String                 @id @default(uuid())
-  petId          String
+  id String @id @default(uuid())
+  petId String
   veterinarianId String
   organizationId String?
-  type           String
-  diagnosis      String?
-  treatment      String?
-  notes          String?
-  occurredAt     DateTime
-  createdAt      DateTime               @default(now())
-  currentVersion Int                    @default(1)
-  pet            Pet                    @relation(fields: [petId], references: [id], onDelete: Cascade)
-  veterinarian   User                   @relation("RecordVeterinarian", fields: [veterinarianId], references: [id])
-  organization   Organization?          @relation(fields: [organizationId], references: [id])
-  versions       MedicalRecordVersion[]
-  prescriptions  Prescription[]
-  attachments    ClinicalAttachment[]
+  type String
+  diagnosis String?
+  treatment String?
+  notes String?
+  occurredAt DateTime
+  createdAt DateTime @default(now())
+  currentVersion Int @default(1)
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+  veterinarian User @relation("RecordVeterinarian", fields: [veterinarianId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  versions MedicalRecordVersion[]
+  prescriptions Prescription[]
+  attachments ClinicalAttachment[]
 }
 
 model MedicalRecordVersion {
-  id              String        @id @default(uuid())
+  id String @id @default(uuid())
   medicalRecordId String
-  version         Int
-  diagnosis       String?
-  treatment       String?
-  notes           String?
-  reason          String?
-  authorId        String
-  createdAt       DateTime      @default(now())
-  medicalRecord   MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
-  author          User          @relation("VersionAuthor", fields: [authorId], references: [id])
-
+  version Int
+  diagnosis String?
+  treatment String?
+  notes String?
+  reason String?
+  authorId String
+  createdAt DateTime @default(now())
+  medicalRecord MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
+  author User @relation("VersionAuthor", fields: [authorId], references: [id])
   @@unique([medicalRecordId, version])
 }
 
 model Vaccination {
-  id               String        @id @default(uuid())
-  petId            String
-  veterinarianId   String
-  organizationId   String?
-  vaccineName      String
-  manufacturer     String?
-  batchNumber      String?
+  id String @id @default(uuid())
+  petId String
+  veterinarianId String
+  organizationId String?
+  vaccineName String
+  manufacturer String?
+  batchNumber String?
   dateAdministered DateTime
-  nextDueDate      DateTime?
-  createdAt        DateTime      @default(now())
-  pet              Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
-  veterinarian     User          @relation("VaccinationVeterinarian", fields: [veterinarianId], references: [id])
-  organization     Organization? @relation(fields: [organizationId], references: [id])
+  nextDueDate DateTime?
+  createdAt DateTime @default(now())
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+  veterinarian User @relation("VaccinationVeterinarian", fields: [veterinarianId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id])
 }
 
 model Prescription {
-  id              String        @id @default(uuid())
-  petId           String
+  id String @id @default(uuid())
+  petId String
   medicalRecordId String?
-  veterinarianId  String
-  organizationId  String?
-  medication      String
-  dosage          String
-  frequency       String
-  duration        String?
-  instructions    String?
-  prescribedAt    DateTime      @default(now())
-  createdAt       DateTime      @default(now())
-  pet             Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
-  medicalRecord   MedicalRecord? @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
-  veterinarian    User          @relation("PrescriptionVeterinarian", fields: [veterinarianId], references: [id])
-  organization    Organization? @relation(fields: [organizationId], references: [id])
+  veterinarianId String
+  organizationId String?
+  medication String
+  dosage String
+  frequency String
+  duration String?
+  instructions String?
+  prescribedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+  medicalRecord MedicalRecord? @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
+  veterinarian User @relation("PrescriptionVeterinarian", fields: [veterinarianId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id])
 }
 
 model Allergy {
-  id          String          @id @default(uuid())
-  petId       String
-  allergen    String
-  reaction    String?
-  severity    AllergySeverity @default(MODERATE)
-  active      Boolean         @default(true)
-  authorId    String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  pet         Pet             @relation(fields: [petId], references: [id], onDelete: Cascade)
-  author      User?           @relation("AllergyAuthor", fields: [authorId], references: [id])
+  id String @id @default(uuid())
+  petId String
+  allergen String
+  reaction String?
+  severity AllergySeverity @default(MODERATE)
+  active Boolean @default(true)
+  authorId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+  author User? @relation("AllergyAuthor", fields: [authorId], references: [id])
 }
 
 model ClinicalAttachment {
-  id              String         @id @default(uuid())
-  petId           String
+  id String @id @default(uuid())
+  petId String
   medicalRecordId String?
-  authorId        String?
-  fileName        String
-  mimeType        String
-  storageKey      String         @unique
-  sha256          String
-  sizeBytes       Int
-  createdAt       DateTime       @default(now())
-  pet             Pet            @relation(fields: [petId], references: [id], onDelete: Cascade)
-  medicalRecord   MedicalRecord? @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
-  author          User?          @relation("AttachmentAuthor", fields: [authorId], references: [id])
+  authorId String?
+  fileName String
+  mimeType String
+  storageKey String @unique
+  sha256 String
+  sizeBytes Int
+  createdAt DateTime @default(now())
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+  medicalRecord MedicalRecord? @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
+  author User? @relation("AttachmentAuthor", fields: [authorId], references: [id])
 }
 
 model AccessGrant {
-  id        String      @id @default(uuid())
-  tokenHash String      @unique
-  petId     String
-  level     AccessLevel @default(READ)
+  id String @id @default(uuid())
+  tokenHash String @unique
+  petId String
+  level AccessLevel @default(READ)
   expiresAt DateTime
-  maxUses   Int         @default(1)
-  uses      Int         @default(0)
+  maxUses Int @default(1)
+  uses Int @default(0)
   revokedAt DateTime?
-  createdAt DateTime    @default(now())
-  pet       Pet         @relation(fields: [petId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
 }
 
 model AuditEvent {
-  id         String   @id @default(uuid())
-  actorId    String?
-  action     String
+  id String @id @default(uuid())
+  actorId String?
+  action String
   entityType String
-  entityId   String
-  metadata   Json?
-  createdAt  DateTime @default(now())
+  entityId String
+  metadata Json?
+  createdAt DateTime @default(now())
 }
 
 model SyncEvent {
-  id            String   @id @default(uuid())
-  clientEventId String   @unique
-  userId        String
-  deviceId      String
-  entityType    String
-  entityId      String
-  operation     String
-  version       Int?
-  payload       Json?
-  createdAt     DateTime @default(now())
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id String @id @default(uuid())
+  clientEventId String @unique
+  userId String
+  deviceId String
+  entityType String
+  entityId String
+  operation String
+  version Int?
+  payload Json?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@index([userId, createdAt])
   @@index([entityType, entityId])
 }
 
 model Organization {
-  id                 String                   @id @default(uuid())
-  name               String
+  id String @id @default(uuid())
+  name String
   registrationNumber String?
-  city               String?
-  state              String?
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
-  memberships        OrganizationMembership[]
-  medicalRecords     MedicalRecord[]
-  vaccinations       Vaccination[]
-  prescriptions      Prescription[]
+  city String?
+  state String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  memberships OrganizationMembership[]
+  medicalRecords MedicalRecord[]
+  vaccinations Vaccination[]
+  prescriptions Prescription[]
 }
 
 model OrganizationMembership {
-  id             String         @id @default(uuid())
+  id String @id @default(uuid())
   organizationId String
-  userId         String
-  role           MembershipRole
-  createdAt      DateTime       @default(now())
-  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  userId String
+  role MembershipRole
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@unique([organizationId, userId])
 }
 
 model ProfessionalProfile {
-  id                 String             @id @default(uuid())
-  userId             String             @unique
-  licenseNumber      String
-  licenseState       String
-  specialty          String?
+  id String @id @default(uuid())
+  userId String @unique
+  licenseNumber String
+  licenseState String
+  specialty String?
   verificationStatus VerificationStatus @default(PENDING)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@unique([licenseNumber, licenseState])
 }
