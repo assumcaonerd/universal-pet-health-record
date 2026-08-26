@@ -1,13 +1,15 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
 import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TotpService } from './totp.service';
 
 @Injectable()
 export class AccountService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
+    private readonly totp: TotpService,
   ) {}
 
   private hashToken(token: string) {
@@ -56,6 +58,76 @@ export class AccountService {
       }),
     ]);
     return { verified: true };
+  }
+
+  async getMfaStatus(userId: string) {
+    const configuration = await this.prisma.totpConfiguration.findUnique({
+      where: { userId },
+      select: { enabledAt: true, createdAt: true, updatedAt: true },
+    });
+    return {
+      configured: Boolean(configuration),
+      enabled: Boolean(configuration?.enabledAt),
+      enabledAt: configuration?.enabledAt ?? null,
+    };
+  }
+
+  async setupMfa(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, emailVerifiedAt: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (!user.emailVerifiedAt) throw new ForbiddenException('Email verification is required');
+
+    const secret = this.totp.generateSecret();
+    const encrypted = this.totp.encryptSecret(secret);
+    await this.prisma.totpConfiguration.upsert({
+      where: { userId },
+      create: { userId, ...encrypted },
+      update: { ...encrypted, enabledAt: null },
+    });
+    await this.prisma.auditEvent.create({
+      data: { actorId: userId, action: 'MFA_TOTP_SETUP_STARTED', entityType: 'User', entityId: userId },
+    });
+
+    return {
+      secret,
+      otpauthUri: this.totp.buildOtpAuthUri(user.email, secret),
+      enabled: false,
+    };
+  }
+
+  async confirmMfa(userId: string, code: string) {
+    const configuration = await this.prisma.totpConfiguration.findUnique({ where: { userId } });
+    if (!configuration) throw new NotFoundException('MFA setup has not been started');
+    const secret = this.totp.decryptSecret(configuration);
+    if (!this.totp.verify(code, secret)) throw new UnauthorizedException('Invalid MFA code');
+
+    const enabledAt = configuration.enabledAt ?? new Date();
+    await this.prisma.$transaction([
+      this.prisma.totpConfiguration.update({ where: { userId }, data: { enabledAt } }),
+      this.prisma.auditEvent.create({
+        data: { actorId: userId, action: 'MFA_TOTP_ENABLED', entityType: 'User', entityId: userId },
+      }),
+    ]);
+    return { enabled: true, enabledAt };
+  }
+
+  async disableMfa(userId: string, code: string) {
+    const configuration = await this.prisma.totpConfiguration.findUnique({ where: { userId } });
+    if (!configuration?.enabledAt) throw new NotFoundException('MFA is not enabled');
+    const secret = this.totp.decryptSecret(configuration);
+    if (!this.totp.verify(code, secret)) throw new UnauthorizedException('Invalid MFA code');
+
+    await this.prisma.$transaction([
+      this.prisma.totpConfiguration.delete({ where: { userId } }),
+      this.prisma.authSession.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+      this.prisma.auditEvent.create({
+        data: { actorId: userId, action: 'MFA_TOTP_DISABLED', entityType: 'User', entityId: userId },
+      }),
+    ]);
+    return { enabled: false, sessionsRevoked: true };
   }
 
   async listSessions(userId: string) {
