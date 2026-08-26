@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AmendMedicalRecordDto } from './dto/amend-medical-record.dto';
 import { CreateMedicalRecordDto } from './dto/create-medical-record.dto';
@@ -27,6 +28,22 @@ export class MedicalRecordsService {
     return pet;
   }
 
+  private async requireWriteGrant(petId: string, token: string) {
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const grant = await this.prisma.accessGrant.findUnique({ where: { tokenHash } });
+    if (
+      !grant ||
+      grant.petId !== petId ||
+      grant.level !== 'WRITE' ||
+      grant.revokedAt ||
+      grant.expiresAt <= new Date() ||
+      grant.uses >= grant.maxUses
+    ) {
+      throw new ForbiddenException('A valid owner-issued WRITE grant is required');
+    }
+    return grant;
+  }
+
   async listForOwner(ownerId: string, petId: string) {
     await this.requireOwner(petId, ownerId);
     return this.prisma.medicalRecord.findMany({
@@ -38,6 +55,7 @@ export class MedicalRecordsService {
 
   async create(veterinarianId: string, petId: string, dto: CreateMedicalRecordDto) {
     await this.requireVerifiedVeterinarian(veterinarianId, dto.organizationId);
+    const grant = await this.requireWriteGrant(petId, dto.accessToken);
 
     const pet = await this.prisma.pet.findUnique({ where: { id: petId } });
     if (!pet) throw new NotFoundException('Pet not found');
@@ -68,13 +86,14 @@ export class MedicalRecordsService {
         },
       });
 
+      await tx.accessGrant.update({ where: { id: grant.id }, data: { uses: { increment: 1 } } });
       await tx.auditEvent.create({
         data: {
           actorId: veterinarianId,
           action: 'MEDICAL_RECORD_CREATED',
           entityType: 'MedicalRecord',
           entityId: record.id,
-          metadata: { petId, version: 1 },
+          metadata: { petId, version: 1, accessGrantId: grant.id },
         },
       });
 
@@ -86,6 +105,9 @@ export class MedicalRecordsService {
     await this.requireVerifiedVeterinarian(veterinarianId);
     const record = await this.prisma.medicalRecord.findUnique({ where: { id: recordId } });
     if (!record) throw new NotFoundException('Medical record not found');
+    if (record.veterinarianId !== veterinarianId) {
+      throw new ForbiddenException('Only the authoring veterinarian may amend this record');
+    }
 
     const nextVersion = record.currentVersion + 1;
     const diagnosis = dto.diagnosis ?? record.diagnosis;
