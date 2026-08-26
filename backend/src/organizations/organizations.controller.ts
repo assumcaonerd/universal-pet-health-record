@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { VerifiedEmailGuard } from '../auth/verified-email.guard';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { OrganizationsService } from './organizations.service';
 
@@ -9,6 +10,7 @@ export class OrganizationsController {
   constructor(private readonly organizations: OrganizationsService) {}
 
   @Post()
+  @UseGuards(VerifiedEmailGuard)
   create(@Req() req: any, @Body() dto: CreateOrganizationDto) {
     return this.organizations.create(req.user.sub, dto);
   }
