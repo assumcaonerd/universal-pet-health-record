@@ -6,7 +6,7 @@ class AdherenceEvent {
   final String status;
   final String? note;
 
-  Duration? get delay => administeredAt == null ? null : administeredAt!.difference(scheduledAt);
+  Duration? get delay => administeredAt?.difference(scheduledAt);
 
   factory AdherenceEvent.fromJson(Map<String, dynamic> json) => AdherenceEvent(
     id: json['id'] as String,
