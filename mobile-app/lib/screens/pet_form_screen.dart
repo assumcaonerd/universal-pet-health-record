@@ -59,7 +59,7 @@ class _PetFormScreenState extends State<PetFormScreen> {
           children: [
             TextFormField(controller: _name, decoration: const InputDecoration(labelText: 'Nome'), validator: (v) => v == null || v.trim().isEmpty ? 'Informe o nome' : null),
             const SizedBox(height: 16),
-            DropdownButtonFormField<String>(value: _species, decoration: const InputDecoration(labelText: 'Espécie'), items: const [
+            DropdownButtonFormField<String>(initialValue: _species, decoration: const InputDecoration(labelText: 'Espécie'), items: const [
               DropdownMenuItem(value: 'DOG', child: Text('Cachorro')),
               DropdownMenuItem(value: 'CAT', child: Text('Gato')),
               DropdownMenuItem(value: 'BIRD', child: Text('Ave')),
