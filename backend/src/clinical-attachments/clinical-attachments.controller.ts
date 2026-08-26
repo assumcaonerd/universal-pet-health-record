@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ClinicalAttachmentsService } from './clinical-attachments.service';
+import { CreateUploadIntentDto } from './dto/create-upload-intent.dto';
 import { RegisterClinicalAttachmentDto } from './dto/register-clinical-attachment.dto';
 
 @Controller('pets/:petId/attachments')
@@ -11,6 +12,11 @@ export class ClinicalAttachmentsController {
   @Get()
   list(@Req() req: any, @Param('petId') petId: string) {
     return this.attachments.list(req.user.sub, petId);
+  }
+
+  @Post('upload-intent')
+  createUploadIntent(@Req() req: any, @Param('petId') petId: string, @Body() dto: CreateUploadIntentDto) {
+    return this.attachments.createUploadIntent(req.user.sub, petId, dto);
   }
 
   @Post('register')
