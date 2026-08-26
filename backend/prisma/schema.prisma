@@ -165,15 +165,17 @@ model Pet {
 }
 
 model Organization {
-  id                   String                   @id @default(uuid())
-  name                 String
-  document             String?
-  createdAt            DateTime                 @default(now())
-  memberships          OrganizationMembership[]
-  professionalProfiles ProfessionalProfile[]
-  medicalRecords       MedicalRecord[]
-  vaccinations         Vaccination[]
-  prescriptions        Prescription[]
+  id                 String                   @id @default(uuid())
+  name               String
+  registrationNumber String?
+  city               String?
+  state              String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  memberships        OrganizationMembership[]
+  medicalRecords     MedicalRecord[]
+  vaccinations       Vaccination[]
+  prescriptions      Prescription[]
 }
 
 model OrganizationMembership {
@@ -192,7 +194,6 @@ model OrganizationMembership {
 model ProfessionalProfile {
   id                 String             @id @default(uuid())
   userId             String             @unique
-  organizationId     String?
   licenseNumber      String
   licenseState       String
   specialty          String?
@@ -200,7 +201,6 @@ model ProfessionalProfile {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization       Organization?      @relation(fields: [organizationId], references: [id])
 
   @@unique([licenseNumber, licenseState])
 }
