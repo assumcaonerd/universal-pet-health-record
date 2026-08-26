@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../core/api_client.dart';
+import '../core/offline_store.dart';
 import '../models/pet.dart';
+import '../services/offline_sync_service.dart';
 
 class PetEditScreen extends StatefulWidget {
   const PetEditScreen({super.key, required this.api, required this.pet});
@@ -30,20 +32,28 @@ class _PetEditScreenState extends State<PetEditScreen> {
     _birthDate = widget.pet.birthDate;
   }
 
+  Map<String, dynamic> _payload() => {
+    'name': _name.text.trim(),
+    'species': _species,
+    'breed': _breed.text.trim().isEmpty ? null : _breed.text.trim(),
+    'microchip': _microchip.text.trim().isEmpty ? null : _microchip.text.trim(),
+    'birthDate': _birthDate?.toIso8601String(),
+  };
+
   Future<void> _save() async {
     if (_name.text.trim().isEmpty) return;
     setState(() { _saving = true; _error = null; });
+    final payload = _payload();
     try {
-      await widget.api.patch('/pets/${widget.pet.id}', {
-        'name': _name.text.trim(),
-        'species': _species,
-        'breed': _breed.text.trim().isEmpty ? null : _breed.text.trim(),
-        'microchip': _microchip.text.trim().isEmpty ? null : _microchip.text.trim(),
-        'birthDate': _birthDate?.toIso8601String(),
-      });
+      await widget.api.patch('/pets/${widget.pet.id}', payload);
       if (mounted) Navigator.of(context).pop(true);
     } on ApiException catch (e) {
       setState(() => _error = e.message);
+    } catch (_) {
+      await OfflineSyncService(widget.api, OfflineStore()).queuePetUpdate(widget.pet, payload);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sem conexão. Alteração salva com segurança e aguardando sincronização.')));
+      Navigator.of(context).pop(true);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
