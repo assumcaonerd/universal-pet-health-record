@@ -1,0 +1,71 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: petrecord_staging
+      POSTGRES_PASSWORD: petrecord_staging
+      POSTGRES_DB: petrecord_staging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U petrecord_staging -d petrecord_staging"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - petrecord_staging_pgdata:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: petrecord_staging
+      MINIO_ROOT_PASSWORD: petrecord-staging-change-me
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - petrecord_staging_minio:/data
+
+  create-bucket:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 petrecord_staging petrecord-staging-change-me; do sleep 2; done;
+      mc mb --ignore-existing local/petrecord-clinical-staging;
+      mc anonymous set none local/petrecord-clinical-staging;
+      exit 0;
+      "
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: staging
+      PORT: 3000
+      DATABASE_URL: postgresql://petrecord_staging:petrecord_staging@postgres:5432/petrecord_staging?schema=public
+      JWT_SECRET: staging-local-only-change-me-before-shared-use
+      MFA_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      MFA_ISSUER: Universal Pet Health Record Staging
+      APP_PUBLIC_URL: http://localhost:8080
+      CORS_ORIGINS: http://localhost:8080,http://localhost:3001
+      EMAIL_FROM: noreply-staging@example.com
+      S3_BUCKET: petrecord-clinical-staging
+      S3_REGION: us-east-1
+      S3_ENDPOINT: http://minio:9000
+      S3_FORCE_PATH_STYLE: "true"
+      S3_ACCESS_KEY_ID: petrecord_staging
+      S3_SECRET_ACCESS_KEY: petrecord-staging-change-me
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      create-bucket:
+        condition: service_completed_successfully
+
+volumes:
+  petrecord_staging_pgdata:
+  petrecord_staging_minio:
