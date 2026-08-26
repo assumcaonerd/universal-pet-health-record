@@ -39,6 +39,13 @@ enum VerificationStatus {
   REJECTED
 }
 
+enum AllergySeverity {
+  MILD
+  MODERATE
+  SEVERE
+  LIFE_THREATENING
+}
+
 model User {
   id                  String                   @id @default(uuid())
   email               String                   @unique
@@ -52,6 +59,10 @@ model User {
   professionalProfile ProfessionalProfile?
   medicalRecords      MedicalRecord[]          @relation("RecordVeterinarian")
   recordVersions      MedicalRecordVersion[]   @relation("VersionAuthor")
+  vaccinations        Vaccination[]            @relation("VaccinationVeterinarian")
+  prescriptions       Prescription[]           @relation("PrescriptionVeterinarian")
+  allergiesAuthored   Allergy[]                @relation("AllergyAuthor")
+  attachmentsAuthored ClinicalAttachment[]     @relation("AttachmentAuthor")
 }
 
 model Pet {
@@ -68,6 +79,9 @@ model Pet {
   updatedAt      DateTime    @updatedAt
   records        MedicalRecord[]
   vaccinations   Vaccination[]
+  prescriptions  Prescription[]
+  allergies      Allergy[]
+  attachments    ClinicalAttachment[]
   accessGrants   AccessGrant[]
 }
 
@@ -87,6 +101,8 @@ model MedicalRecord {
   veterinarian   User                   @relation("RecordVeterinarian", fields: [veterinarianId], references: [id])
   organization   Organization?          @relation(fields: [organizationId], references: [id])
   versions       MedicalRecordVersion[]
+  prescriptions  Prescription[]
+  attachments    ClinicalAttachment[]
 }
 
 model MedicalRecordVersion {
@@ -106,16 +122,68 @@ model MedicalRecordVersion {
 }
 
 model Vaccination {
-  id               String   @id @default(uuid())
+  id               String        @id @default(uuid())
   petId            String
+  veterinarianId   String
+  organizationId   String?
   vaccineName      String
   manufacturer     String?
   batchNumber      String?
   dateAdministered DateTime
   nextDueDate      DateTime?
-  administeredBy   String?
-  createdAt        DateTime @default(now())
-  pet              Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+  createdAt        DateTime      @default(now())
+  pet              Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
+  veterinarian     User          @relation("VaccinationVeterinarian", fields: [veterinarianId], references: [id])
+  organization     Organization? @relation(fields: [organizationId], references: [id])
+}
+
+model Prescription {
+  id              String        @id @default(uuid())
+  petId           String
+  medicalRecordId String?
+  veterinarianId  String
+  organizationId  String?
+  medication      String
+  dosage          String
+  frequency       String
+  duration        String?
+  instructions    String?
+  prescribedAt    DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+  pet             Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
+  medicalRecord   MedicalRecord? @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
+  veterinarian    User          @relation("PrescriptionVeterinarian", fields: [veterinarianId], references: [id])
+  organization    Organization? @relation(fields: [organizationId], references: [id])
+}
+
+model Allergy {
+  id          String          @id @default(uuid())
+  petId       String
+  allergen    String
+  reaction    String?
+  severity    AllergySeverity @default(MODERATE)
+  active      Boolean         @default(true)
+  authorId    String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  pet         Pet             @relation(fields: [petId], references: [id], onDelete: Cascade)
+  author      User?           @relation("AllergyAuthor", fields: [authorId], references: [id])
+}
+
+model ClinicalAttachment {
+  id              String         @id @default(uuid())
+  petId           String
+  medicalRecordId String?
+  authorId        String?
+  fileName        String
+  mimeType        String
+  storageKey      String         @unique
+  sha256          String
+  sizeBytes       Int
+  createdAt       DateTime       @default(now())
+  pet             Pet            @relation(fields: [petId], references: [id], onDelete: Cascade)
+  medicalRecord   MedicalRecord? @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
+  author          User?          @relation("AttachmentAuthor", fields: [authorId], references: [id])
 }
 
 model AccessGrant {
@@ -151,6 +219,8 @@ model Organization {
   updatedAt          DateTime                 @updatedAt
   memberships        OrganizationMembership[]
   medicalRecords     MedicalRecord[]
+  vaccinations       Vaccination[]
+  prescriptions      Prescription[]
 }
 
 model OrganizationMembership {
