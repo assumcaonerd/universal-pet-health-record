@@ -11,4 +11,8 @@ export class LoginDto {
   @IsOptional()
   @Matches(/^\d{6}$/)
   mfaCode?: string;
+
+  @IsOptional()
+  @Matches(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/)
+  recoveryCode?: string;
 }
