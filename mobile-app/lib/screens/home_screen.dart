@@ -5,6 +5,7 @@ import '../models/pet.dart';
 import '../services/offline_sync_service.dart';
 import 'pet_detail_screen.dart';
 import 'pet_form_screen.dart';
+import 'reminders_screen.dart';
 import 'security_screen.dart';
 import 'sync_conflict_screen.dart';
 
@@ -62,10 +63,13 @@ class _HomeScreenState extends State<HomeScreen> {
     if (created == true) await _load();
   }
 
+  void _openReminders() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RemindersScreen(pets: _pets)));
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Meus pets'), actions: [
+        IconButton(tooltip: 'Cuidados e lembretes', onPressed: _pets.isEmpty ? null : _openReminders, icon: const Icon(Icons.notifications_active_outlined)),
         IconButton(tooltip: 'Segurança da conta', onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SecurityScreen(api: widget.api))), icon: const Icon(Icons.shield_outlined)),
         IconButton(tooltip: 'Sincronizar', onPressed: _load, icon: const Icon(Icons.sync)),
         IconButton(onPressed: widget.onLogout, icon: const Icon(Icons.logout)),
