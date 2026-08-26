@@ -69,6 +69,7 @@ model User {
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
   totpConfiguration       TotpConfiguration?
+  mfaRecoveryCodes        MfaRecoveryCode[]
 }
 
 model AuthSession {
@@ -121,6 +122,17 @@ model TotpConfiguration {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MfaRecoveryCode {
+  id        String   @id @default(uuid())
+  userId    String
+  codeHash  String   @unique
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
 }
 
 model Pet {
@@ -196,7 +208,7 @@ model Vaccination {
 }
 
 model Prescription {
-  id              String        @id @default(uuid())
+  id              String         @id @default(uuid())
   petId           String
   medicalRecordId String?
   veterinarianId  String
@@ -206,12 +218,12 @@ model Prescription {
   frequency       String
   duration        String?
   instructions    String?
-  prescribedAt    DateTime      @default(now())
-  createdAt       DateTime      @default(now())
-  pet             Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
+  prescribedAt    DateTime       @default(now())
+  createdAt       DateTime       @default(now())
+  pet             Pet            @relation(fields: [petId], references: [id], onDelete: Cascade)
   medicalRecord   MedicalRecord? @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
-  veterinarian    User          @relation("PrescriptionVeterinarian", fields: [veterinarianId], references: [id])
-  organization    Organization? @relation(fields: [organizationId], references: [id])
+  veterinarian    User           @relation("PrescriptionVeterinarian", fields: [veterinarianId], references: [id])
+  organization    Organization?  @relation(fields: [organizationId], references: [id])
 }
 
 model Allergy {
