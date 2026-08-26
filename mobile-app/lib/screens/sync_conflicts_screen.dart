@@ -42,6 +42,14 @@ class _SyncConflictsScreenState extends State<SyncConflictsScreen> {
     }
   }
 
+  Future<Pet?> _cachedPet(String id) async {
+    final pets = await widget.store.loadPets();
+    for (final pet in pets) {
+      if (pet.id == id) return pet;
+    }
+    return null;
+  }
+
   Future<void> _keepServer(SyncConflict conflict) async {
     final server = await _serverPet(conflict.event.entityId);
     if (server == null) {
@@ -80,8 +88,7 @@ class _SyncConflictsScreenState extends State<SyncConflictsScreen> {
   }
 
   Future<void> _details(SyncConflict conflict) async {
-    final localPets = await widget.store.loadPets();
-    final local = localPets.where((p) => p.id == conflict.event.entityId).cast<Pet?>().firstWhere((p) => p != null, orElse: () => null);
+    final local = await _cachedPet(conflict.event.entityId);
     final server = await _serverPet(conflict.event.entityId);
     if (!mounted) return;
     showDialog<void>(context: context, builder: (context) => AlertDialog(
