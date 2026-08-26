@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { CreateUploadIntentDto } from './dto/create-upload-intent.dto';
@@ -24,6 +24,28 @@ export class ClinicalAttachmentsService {
   async createUploadIntent(userId: string, petId: string, dto: CreateUploadIntentDto) {
     await this.requireOwner(petId, userId);
     return this.storage.createPresignedUpload(petId, dto.fileName, dto.mimeType, dto.sha256);
+  }
+
+  async createDownloadIntent(userId: string, petId: string, attachmentId: string) {
+    await this.requireOwner(petId, userId);
+    const attachment = await this.prisma.clinicalAttachment.findFirst({ where: { id: attachmentId, petId } });
+    if (!attachment) throw new NotFoundException('Clinical attachment not found');
+
+    const signed = await this.storage.createPresignedDownload(
+      attachment.storageKey,
+      attachment.fileName,
+      attachment.mimeType,
+    );
+    await this.prisma.auditEvent.create({
+      data: {
+        actorId: userId,
+        action: 'CLINICAL_ATTACHMENT_DOWNLOAD_AUTHORIZED',
+        entityType: 'ClinicalAttachment',
+        entityId: attachment.id,
+        metadata: { petId },
+      },
+    });
+    return { ...signed, attachmentId: attachment.id, sha256: attachment.sha256, sizeBytes: attachment.sizeBytes };
   }
 
   async register(userId: string, petId: string, dto: RegisterClinicalAttachmentDto) {
