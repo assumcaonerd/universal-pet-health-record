@@ -38,10 +38,18 @@ class OfflineStore {
   static const _cursorKey = 'offline_sync_cursor_v1';
   static String _clinicalKey(String petId) => 'offline_clinical_v1_$petId';
 
-  Future<String> deviceId() async { final existing = await _storage.read(key: _deviceKey); if (existing != null) return existing; final created = const Uuid().v4(); await _storage.write(key: _deviceKey, value: created); return created; }
+  Future<String> deviceId() async {
+    final existing = await _storage.read(key: _deviceKey);
+    if (existing != null) return existing;
+    final created = const Uuid().v4();
+    await _storage.write(key: _deviceKey, value: created);
+    return created;
+  }
+
   Future<String?> syncCursor() => _storage.read(key: _cursorKey);
   Future<void> saveSyncCursor(String? cursor) => cursor == null ? _storage.delete(key: _cursorKey) : _storage.write(key: _cursorKey, value: cursor);
   Future<void> resetSyncCursor() => _storage.delete(key: _cursorKey);
+
   Future<void> clearAccountScopedData() async {
     await Future.wait([
       _storage.delete(key: _petsKey),
@@ -51,8 +59,25 @@ class OfflineStore {
   }
 
   Future<void> savePets(List<Pet> pets) => _storage.write(key: _petsKey, value: jsonEncode(pets.map((e) => e.toJson()).toList()));
-  Future<List<Pet>> loadPets() async { final raw = await _storage.read(key: _petsKey); if (raw == null || raw.isEmpty) return const []; final decoded = jsonDecode(raw) as List<dynamic>; return decoded.map((e) => Pet.fromJson(Map<String, dynamic>.from(e as Map))).toList(); }
-  Future<void> upsertCachedPet(Pet pet) async { final pets = await loadPets(); final index = pets.indexWhere((p) => p.id == pet.id); if (index >= 0) pets[index] = pet; else pets.add(pet); await savePets(pets); }
+
+  Future<List<Pet>> loadPets() async {
+    final raw = await _storage.read(key: _petsKey);
+    if (raw == null || raw.isEmpty) return const [];
+    final decoded = jsonDecode(raw) as List<dynamic>;
+    return decoded.map((e) => Pet.fromJson(Map<String, dynamic>.from(e as Map))).toList();
+  }
+
+  Future<void> upsertCachedPet(Pet pet) async {
+    final pets = await loadPets();
+    final index = pets.indexWhere((p) => p.id == pet.id);
+    if (index >= 0) {
+      pets[index] = pet;
+    } else {
+      pets.add(pet);
+    }
+    await savePets(pets);
+  }
+
   Future<void> saveClinicalSnapshot(ClinicalSnapshot snapshot) => _storage.write(key: _clinicalKey(snapshot.petId), value: jsonEncode(snapshot.toJson()));
   Future<ClinicalSnapshot?> loadClinicalSnapshot(String petId) async { final raw = await _storage.read(key: _clinicalKey(petId)); if (raw == null || raw.isEmpty) return null; return ClinicalSnapshot.fromJson(Map<String, dynamic>.from(jsonDecode(raw) as Map)); }
   Future<void> clearClinicalSnapshot(String petId) => _storage.delete(key: _clinicalKey(petId));
