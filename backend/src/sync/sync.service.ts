@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { AllergySeverity, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PushSyncEventDto } from './dto/push-sync-event.dto';
 
@@ -11,9 +11,16 @@ export class SyncService {
     if (!payload) return {};
     const allowed = ['name', 'breed', 'birthDate', 'microchip'] as const;
     const patch: Record<string, unknown> = {};
-    for (const key of allowed) if (Object.prototype.hasOwnProperty.call(payload, key)) patch[key] = payload[key];
+    for (const key of allowed) {
+      if (Object.prototype.hasOwnProperty.call(payload, key)) patch[key] = payload[key];
+    }
     if (typeof patch.birthDate === 'string') patch.birthDate = new Date(patch.birthDate);
     return patch;
+  }
+
+  private parseAllergySeverity(value: unknown): AllergySeverity | null {
+    if (typeof value !== 'string') return null;
+    return (Object.values(AllergySeverity) as string[]).includes(value) ? (value as AllergySeverity) : null;
   }
 
   private encodeCursor(createdAt: Date, id: string) {
@@ -24,7 +31,9 @@ export class SyncService {
     try {
       const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as { createdAt?: string; id?: string };
       const createdAt = parsed.createdAt ? new Date(parsed.createdAt) : null;
-      if (!createdAt || Number.isNaN(createdAt.getTime()) || typeof parsed.id !== 'string' || parsed.id.length === 0) throw new Error('invalid');
+      if (!createdAt || Number.isNaN(createdAt.getTime()) || typeof parsed.id !== 'string' || parsed.id.length === 0) {
+        throw new Error('invalid');
+      }
       return { createdAt, id: parsed.id };
     } catch {
       throw new BadRequestException('Invalid sync cursor');
@@ -53,8 +62,10 @@ export class SyncService {
       const pet = await this.prisma.pet.findFirst({ where: { id: petId, primaryOwnerId: userId } });
       if (!pet) throw new ForbiddenException('Pet access denied');
       const allergen = payload.allergen;
-      const severity = payload.severity;
-      if (typeof allergen !== 'string' || allergen.trim().length === 0 || typeof severity !== 'string') return { accepted: false, duplicate: false, conflict: true, reason: 'INVALID_PAYLOAD' };
+      const severity = this.parseAllergySeverity(payload.severity);
+      if (typeof allergen !== 'string' || allergen.trim().length === 0 || !severity) {
+        return { accepted: false, duplicate: false, conflict: true, reason: 'INVALID_PAYLOAD' };
+      }
       try {
         const event = await this.prisma.$transaction(async (tx) => {
           const allergy = await tx.allergy.create({ data: { id: dto.entityId, petId, allergen: allergen.trim(), reaction: typeof payload.reaction === 'string' ? payload.reaction : undefined, severity, authorId: userId } });
