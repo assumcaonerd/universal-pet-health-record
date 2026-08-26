@@ -33,14 +33,19 @@ class OfflineSyncService {
       version: pet.version + 1,
       payload: payload,
     ));
-    await store.upsertCachedPet(pet.copyWith(
-      name: payload['name'] as String?,
-      species: payload['species'] as String?,
-      breed: payload['breed'] as String?,
-      birthDate: payload['birthDate'] is String ? DateTime.tryParse(payload['birthDate'] as String) : pet.birthDate,
-      microchip: payload['microchip'] as String?,
+
+    final cached = Pet(
+      id: pet.id,
+      name: payload.containsKey('name') ? payload['name'] as String : pet.name,
+      species: payload.containsKey('species') ? payload['species'] as String : pet.species,
+      breed: payload.containsKey('breed') ? payload['breed'] as String? : pet.breed,
+      birthDate: payload.containsKey('birthDate')
+          ? (payload['birthDate'] is String ? DateTime.tryParse(payload['birthDate'] as String) : null)
+          : pet.birthDate,
+      microchip: payload.containsKey('microchip') ? payload['microchip'] as String? : pet.microchip,
       version: pet.version + 1,
-    ));
+    );
+    await store.upsertCachedPet(cached);
   }
 
   Future<SyncResult> flush() async {
