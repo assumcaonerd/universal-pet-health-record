@@ -194,12 +194,15 @@ model ProfessionalProfile {
   userId             String             @unique
   organizationId     String?
   licenseNumber      String
-  licenseRegion      String
+  licenseState       String
+  specialty          String?
   verificationStatus VerificationStatus @default(PENDING)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization       Organization?      @relation(fields: [organizationId], references: [id])
+
+  @@unique([licenseNumber, licenseState])
 }
 
 model MedicalRecord {
