@@ -74,7 +74,17 @@ class OfflineStore {
 
   Future<void> enqueue(PendingSyncEvent event) async {
     final items = await queue();
-    await _storage.write(key: _queueKey, value: jsonEncode([...items, event].map((e) => e.toJson()).toList()));
+    await replaceQueue([...items, event]);
+  }
+
+  Future<void> removeEvent(String clientEventId) async {
+    final items = await queue();
+    await replaceQueue(items.where((e) => e.clientEventId != clientEventId).toList());
+  }
+
+  Future<void> replaceEvent(String clientEventId, PendingSyncEvent replacement) async {
+    final items = await queue();
+    await replaceQueue(items.map((e) => e.clientEventId == clientEventId ? replacement : e).toList());
   }
 
   Future<void> replaceQueue(List<PendingSyncEvent> items) => _storage.write(key: _queueKey, value: jsonEncode(items.map((e) => e.toJson()).toList()));
