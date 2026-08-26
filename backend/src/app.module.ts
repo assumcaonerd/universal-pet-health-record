@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AccessGrantsModule } from './access-grants/access-grants.module';
 import { AllergiesModule } from './allergies/allergies.module';
 import { AuthModule } from './auth/auth.module';
@@ -16,6 +18,7 @@ import { VaccinationsModule } from './vaccinations/vaccinations.module';
 
 @Module({
   imports: [
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     PrismaModule,
     HealthModule,
     UsersModule,
@@ -31,5 +34,6 @@ import { VaccinationsModule } from './vaccinations/vaccinations.module';
     ClinicalAttachmentsModule,
     SyncModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}
