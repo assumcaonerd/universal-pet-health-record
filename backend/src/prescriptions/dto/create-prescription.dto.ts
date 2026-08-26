@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 
 export class CreatePrescriptionDto {
   @IsString()
@@ -25,6 +25,20 @@ export class CreatePrescriptionDto {
   @IsString()
   @MaxLength(2000)
   instructions?: string;
+
+  @IsOptional()
+  @IsDateString()
+  startsAt?: string;
+
+  @IsOptional()
+  @IsDateString()
+  endsAt?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(15)
+  @Max(43_200)
+  intervalMinutes?: number;
 
   @IsOptional()
   @IsUUID()
