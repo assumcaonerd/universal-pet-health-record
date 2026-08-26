@@ -5,6 +5,7 @@ import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
+import { TotpService } from './totp.service';
 
 jest.mock('bcryptjs');
 
@@ -13,7 +14,14 @@ describe('AuthService', () => {
   const users = { create: jest.fn(), findByEmail: jest.fn() };
   const jwt = { signAsync: jest.fn().mockResolvedValue('token') };
   const prisma = {
-    authSession: { create: jest.fn(), findUnique: jest.fn(), updateMany: jest.fn(), update: jest.fn() },
+    authSession: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      updateMany: jest.fn(),
+      update: jest.fn(),
+    },
+    totpConfiguration: { findUnique: jest.fn() },
     passwordResetToken: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     user: { update: jest.fn() },
     auditEvent: { create: jest.fn() },
@@ -23,10 +31,13 @@ describe('AuthService', () => {
     }),
   };
   const email = { send: jest.fn().mockResolvedValue({ delivered: true }) };
+  const totp = { decryptSecret: jest.fn().mockReturnValue('SECRET'), verify: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
     prisma.authSession.create.mockResolvedValue({ id: 's1' });
+    prisma.authSession.findFirst.mockResolvedValue(null);
+    prisma.totpConfiguration.findUnique.mockResolvedValue(null);
     prisma.auditEvent.create.mockResolvedValue({});
     const module = await Test.createTestingModule({
       providers: [
@@ -35,6 +46,7 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: jwt },
         { provide: PrismaService, useValue: prisma },
         { provide: EmailService, useValue: email },
+        { provide: TotpService, useValue: totp },
       ],
     }).compile();
     service = module.get(AuthService);
@@ -55,5 +67,32 @@ describe('AuthService', () => {
   it('rejects invalid credentials', async () => {
     users.findByEmail.mockResolvedValue(null);
     await expect(service.login({ email: 'none@example.com', password: 'Strongpass!123' })).rejects.toThrow('Invalid credentials');
+  });
+
+  it('requires a TOTP code when MFA is enabled', async () => {
+    users.findByEmail.mockResolvedValue({
+      id: 'u1', email: 'owner@example.com', role: 'OWNER', name: 'Owner', passwordHash: 'hash',
+    });
+    (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+    prisma.totpConfiguration.findUnique.mockResolvedValue({
+      userId: 'u1', enabledAt: new Date(), secretCiphertext: 'x', iv: 'y', authTag: 'z',
+    });
+
+    await expect(service.login({ email: 'owner@example.com', password: 'Strongpass!123' })).rejects.toThrow('MFA code required');
+  });
+
+  it('accepts a valid TOTP code and creates a session', async () => {
+    users.findByEmail.mockResolvedValue({
+      id: 'u1', email: 'owner@example.com', role: 'OWNER', name: 'Owner', passwordHash: 'hash',
+    });
+    (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+    prisma.totpConfiguration.findUnique.mockResolvedValue({
+      userId: 'u1', enabledAt: new Date(), secretCiphertext: 'x', iv: 'y', authTag: 'z',
+    });
+    totp.verify.mockReturnValue(true);
+
+    const result = await service.login({ email: 'owner@example.com', password: 'Strongpass!123', mfaCode: '123456' });
+    expect(result.sessionId).toBe('s1');
+    expect(totp.verify).toHaveBeenCalledWith('123456', 'SECRET');
   });
 });
