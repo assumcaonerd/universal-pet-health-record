@@ -7,12 +7,13 @@ Aplicativo Flutter do tutor para gerenciar o prontuário de saúde do pet.
 - Flutter / Dart
 - Material 3
 - `http` para comunicação com a API e upload direto ao storage
-- `flutter_secure_storage` para tokens de sessão
+- `flutter_secure_storage` para tokens, cache offline e fila local protegida
 - `crypto` para SHA-256 local
 - `file_picker` para seleção de exames e documentos
 - `mime` para detecção de tipo de arquivo
 - `qr_flutter` para QR temporário gerado localmente
 - `url_launcher` para abertura de downloads pré-assinados
+- `uuid` para identidade do dispositivo e eventos idempotentes de sincronização
 - `intl` para datas
 
 ## Já implementado
@@ -41,6 +42,13 @@ Aplicativo Flutter do tutor para gerenciar o prontuário de saúde do pet.
 - vínculo opcional de documento a um atendimento clínico
 - listagem de exames e documentos por pet
 - download/visualização por URL temporária autorizada pelo backend
+- cache local protegido da lista de pets
+- edição de pet em modo offline com fila idempotente
+- identidade persistente do dispositivo para sincronização
+- envio automático da fila ao recuperar conectividade
+- detecção de conflitos de versão pelo backend
+- resolução visual de conflitos sem sobrescrita silenciosa
+- escolha entre manter a versão do servidor ou reaplicar a alteração local sobre a versão mais recente
 - carregamento independente de cada seção clínica para reduzir impacto de falhas parciais
 - tratamento de erros da API
 - tema Material 3
@@ -57,6 +65,19 @@ Aplicativo Flutter do tutor para gerenciar o prontuário de saúde do pet.
 7. Para abrir um documento, a API valida a autorização do tutor e retorna uma URL de download temporária.
 
 O arquivo pode ficar no prontuário geral do pet ou ser vinculado a um `MedicalRecord` existente. As URLs pré-assinadas não são persistidas no aplicativo.
+
+## Offline-first e conflitos
+
+A lista de pets e a fila de alterações ficam no armazenamento seguro do sistema. Cada evento recebe um `clientEventId` UUID e um `deviceId` persistente. Quando uma edição de pet não consegue alcançar a API, o app atualiza o cache local e guarda um evento `UPDATE` para envio posterior.
+
+Ao recuperar conexão, a fila é enviada para `/sync/push`. O backend compara a versão local com a versão corrente e pode responder com conflitos como `STALE_VERSION`, `VERSION_GAP`, `CONCURRENT_VERSION` ou `OPTIMISTIC_LOCK_FAILED`.
+
+Quando isso acontece, a alteração local permanece pendente. A interface carrega a versão atual do servidor e apresenta lado a lado os valores do servidor e deste aparelho. O tutor escolhe explicitamente entre:
+
+- **Usar servidor:** descarta somente aquele evento pendente e atualiza o cache com a versão oficial.
+- **Reaplicar minha alteração:** cria um novo evento idempotente baseado em `serverVersion + 1`, preservando o payload local para nova tentativa.
+
+Nenhum conflito é resolvido automaticamente por sobrescrita silenciosa.
 
 ## Regras clínicas importantes
 
@@ -91,8 +112,8 @@ flutter run
 
 ## Próximos passos
 
-1. cache local criptografado do prontuário essencial
-2. sincronização offline-first com resolução visual de conflitos
-3. fila offline para alterações do tutor
-4. notificações de vacinas, medicamentos e eventos importantes
-5. acabamento de acessibilidade, internacionalização e design system
+1. cache offline do prontuário clínico essencial, além do cadastro do pet
+2. sincronização de entidades clínicas permitidas ao tutor
+3. notificações de vacinas, medicamentos e eventos importantes
+4. acessibilidade, internacionalização e design system
+5. telemetria de erros sem conteúdo clínico sensível
