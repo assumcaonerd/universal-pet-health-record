@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:uuid/uuid.dart';
+import '../models/clinical_models.dart';
 import '../models/pet.dart';
 
 class PendingSyncEvent {
@@ -34,12 +35,41 @@ class PendingSyncEvent {
   );
 }
 
+class ClinicalSnapshot {
+  const ClinicalSnapshot({required this.petId, required this.savedAt, required this.vaccinations, required this.prescriptions, required this.allergies, required this.records});
+  final String petId;
+  final DateTime savedAt;
+  final List<Map<String, dynamic>> vaccinations;
+  final List<Prescription> prescriptions;
+  final List<Allergy> allergies;
+  final List<MedicalRecord> records;
+
+  Map<String, dynamic> toJson() => {
+    'petId': petId,
+    'savedAt': savedAt.toIso8601String(),
+    'vaccinations': vaccinations,
+    'prescriptions': prescriptions.map((e) => e.toJson()).toList(),
+    'allergies': allergies.map((e) => e.toJson()).toList(),
+    'records': records.map((e) => e.toJson()).toList(),
+  };
+
+  factory ClinicalSnapshot.fromJson(Map<String, dynamic> json) => ClinicalSnapshot(
+    petId: json['petId'] as String,
+    savedAt: DateTime.tryParse(json['savedAt'] as String? ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0),
+    vaccinations: (json['vaccinations'] as List<dynamic>? ?? const []).map((e) => Map<String, dynamic>.from(e as Map)).toList(),
+    prescriptions: (json['prescriptions'] as List<dynamic>? ?? const []).map((e) => Prescription.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
+    allergies: (json['allergies'] as List<dynamic>? ?? const []).map((e) => Allergy.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
+    records: (json['records'] as List<dynamic>? ?? const []).map((e) => MedicalRecord.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
+  );
+}
+
 class OfflineStore {
   OfflineStore({FlutterSecureStorage? storage}) : _storage = storage ?? const FlutterSecureStorage();
   final FlutterSecureStorage _storage;
   static const _petsKey = 'offline_pets_v1';
   static const _queueKey = 'offline_sync_queue_v1';
   static const _deviceKey = 'offline_device_id_v1';
+  static String _clinicalKey(String petId) => 'offline_clinical_v1_$petId';
 
   Future<String> deviceId() async {
     final existing = await _storage.read(key: _deviceKey);
@@ -64,6 +94,16 @@ class OfflineStore {
     if (index >= 0) pets[index] = pet; else pets.add(pet);
     await savePets(pets);
   }
+
+  Future<void> saveClinicalSnapshot(ClinicalSnapshot snapshot) => _storage.write(key: _clinicalKey(snapshot.petId), value: jsonEncode(snapshot.toJson()));
+
+  Future<ClinicalSnapshot?> loadClinicalSnapshot(String petId) async {
+    final raw = await _storage.read(key: _clinicalKey(petId));
+    if (raw == null || raw.isEmpty) return null;
+    return ClinicalSnapshot.fromJson(Map<String, dynamic>.from(jsonDecode(raw) as Map));
+  }
+
+  Future<void> clearClinicalSnapshot(String petId) => _storage.delete(key: _clinicalKey(petId));
 
   Future<List<PendingSyncEvent>> queue() async {
     final raw = await _storage.read(key: _queueKey);
