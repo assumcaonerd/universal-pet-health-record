@@ -1,8 +1,8 @@
 import { ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { createHash, randomBytes } from 'crypto';
+import { TotpService } from '../auth/totp.service';
 import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { TotpService } from './totp.service';
 
 @Injectable()
 export class AccountService {
