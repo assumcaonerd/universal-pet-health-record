@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
@@ -49,6 +49,11 @@ export class PrescriptionsService {
       if (!record) throw new NotFoundException('Medical record not found for this pet');
     }
 
+    const startsAt = dto.startsAt ? new Date(dto.startsAt) : undefined;
+    const endsAt = dto.endsAt ? new Date(dto.endsAt) : undefined;
+    if (startsAt && endsAt && endsAt < startsAt) throw new BadRequestException('endsAt must be on or after startsAt');
+    if (dto.intervalMinutes && !startsAt) throw new BadRequestException('startsAt is required when intervalMinutes is provided');
+
     await this.consumeWriteGrant(dto.accessToken, petId);
 
     return this.prisma.$transaction(async (tx) => {
@@ -63,6 +68,9 @@ export class PrescriptionsService {
           frequency: dto.frequency,
           duration: dto.duration,
           instructions: dto.instructions,
+          startsAt,
+          endsAt,
+          intervalMinutes: dto.intervalMinutes,
         },
       });
       await tx.auditEvent.create({
@@ -71,7 +79,7 @@ export class PrescriptionsService {
           action: 'PRESCRIPTION_CREATED',
           entityType: 'Prescription',
           entityId: prescription.id,
-          metadata: { petId, medication: prescription.medication },
+          metadata: { petId, medication: prescription.medication, startsAt, endsAt, intervalMinutes: dto.intervalMinutes ?? null },
         },
       });
       return prescription;
