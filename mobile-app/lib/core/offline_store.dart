@@ -13,7 +13,6 @@ class PendingSyncEvent {
   final String operation;
   final int version;
   final Map<String, dynamic> payload;
-
   Map<String, dynamic> toJson() => {'clientEventId': clientEventId, 'deviceId': deviceId, 'entityType': entityType, 'entityId': entityId, 'operation': operation, 'version': version, 'payload': payload};
   factory PendingSyncEvent.fromJson(Map<String, dynamic> json) => PendingSyncEvent(clientEventId: json['clientEventId'] as String, deviceId: json['deviceId'] as String, entityType: json['entityType'] as String, entityId: json['entityId'] as String, operation: json['operation'] as String, version: (json['version'] as num).toInt(), payload: Map<String, dynamic>.from(json['payload'] as Map));
 }
@@ -43,6 +42,13 @@ class OfflineStore {
   Future<String?> syncCursor() => _storage.read(key: _cursorKey);
   Future<void> saveSyncCursor(String? cursor) => cursor == null ? _storage.delete(key: _cursorKey) : _storage.write(key: _cursorKey, value: cursor);
   Future<void> resetSyncCursor() => _storage.delete(key: _cursorKey);
+  Future<void> clearAccountScopedData() async {
+    await Future.wait([
+      _storage.delete(key: _petsKey),
+      _storage.delete(key: _queueKey),
+      _storage.delete(key: _cursorKey),
+    ]);
+  }
 
   Future<void> savePets(List<Pet> pets) => _storage.write(key: _petsKey, value: jsonEncode(pets.map((e) => e.toJson()).toList()));
   Future<List<Pet>> loadPets() async { final raw = await _storage.read(key: _petsKey); if (raw == null || raw.isEmpty) return const []; final decoded = jsonDecode(raw) as List<dynamic>; return decoded.map((e) => Pet.fromJson(Map<String, dynamic>.from(e as Map))).toList(); }
