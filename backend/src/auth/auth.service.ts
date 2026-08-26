@@ -44,9 +44,30 @@ export class AuthService {
 
     const mfa = await this.prisma.totpConfiguration.findUnique({ where: { userId: user.id } });
     if (mfa?.enabledAt) {
-      if (!dto.mfaCode) throw new UnauthorizedException('MFA code required');
-      const secret = this.totp.decryptSecret(mfa);
-      if (!this.totp.verify(dto.mfaCode, secret)) throw new UnauthorizedException('Invalid MFA code');
+      let verified = false;
+      if (dto.mfaCode) {
+        const secret = this.totp.decryptSecret(mfa);
+        verified = this.totp.verify(dto.mfaCode, secret);
+      } else if (dto.recoveryCode) {
+        const codeHash = this.hashToken(dto.recoveryCode.toUpperCase());
+        const recovery = await this.prisma.mfaRecoveryCode.findUnique({ where: { codeHash } });
+        if (recovery && recovery.userId === user.id && !recovery.usedAt) {
+          const consumed = await this.prisma.mfaRecoveryCode.updateMany({
+            where: { id: recovery.id, usedAt: null },
+            data: { usedAt: new Date() },
+          });
+          verified = consumed.count === 1;
+          if (verified) {
+            await this.prisma.auditEvent.create({
+              data: { actorId: user.id, action: 'AUTH_MFA_RECOVERY_CODE_USED', entityType: 'User', entityId: user.id },
+            });
+          }
+        }
+      } else {
+        throw new UnauthorizedException('MFA code required');
+      }
+
+      if (!verified) throw new UnauthorizedException('Invalid MFA code');
       await this.prisma.auditEvent.create({
         data: { actorId: user.id, action: 'AUTH_MFA_VERIFIED', entityType: 'User', entityId: user.id },
       });
@@ -113,39 +134,26 @@ export class AuthService {
   async requestPasswordReset(dto: PasswordResetRequestDto) {
     const user = await this.users.findByEmail(dto.email);
     if (!user) return { accepted: true };
-
     const token = this.createOpaqueToken();
     const tokenHash = this.hashToken(token);
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
     await this.prisma.passwordResetToken.create({ data: { userId: user.id, tokenHash, expiresAt } });
-    await this.prisma.auditEvent.create({
-      data: { actorId: user.id, action: 'PASSWORD_RESET_REQUESTED', entityType: 'User', entityId: user.id },
-    });
-
+    await this.prisma.auditEvent.create({ data: { actorId: user.id, action: 'PASSWORD_RESET_REQUESTED', entityType: 'User', entityId: user.id } });
     const baseUrl = process.env.APP_PUBLIC_URL ?? 'http://localhost:3001';
-    const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`;
-    await this.email.send(user.email, 'Recuperacao de senha', `Redefina sua senha: ${resetUrl}`);
-
-    return process.env.NODE_ENV === 'production'
-      ? { accepted: true }
-      : { accepted: true, developmentToken: token, expiresAt: expiresAt.toISOString() };
+    await this.email.send(user.email, 'Recuperacao de senha', `Redefina sua senha: ${baseUrl}/reset-password?token=${encodeURIComponent(token)}`);
+    return process.env.NODE_ENV === 'production' ? { accepted: true } : { accepted: true, developmentToken: token, expiresAt: expiresAt.toISOString() };
   }
 
   async confirmPasswordReset(dto: PasswordResetConfirmDto) {
     const tokenHash = this.hashToken(dto.token);
     const reset = await this.prisma.passwordResetToken.findUnique({ where: { tokenHash } });
-    if (!reset || reset.usedAt || reset.expiresAt <= new Date()) {
-      throw new UnauthorizedException('Invalid or expired reset token');
-    }
-
+    if (!reset || reset.usedAt || reset.expiresAt <= new Date()) throw new UnauthorizedException('Invalid or expired reset token');
     const passwordHash = await bcrypt.hash(dto.newPassword, 12);
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id: reset.userId }, data: { passwordHash } }),
       this.prisma.passwordResetToken.update({ where: { id: reset.id }, data: { usedAt: new Date() } }),
       this.prisma.authSession.updateMany({ where: { userId: reset.userId, revokedAt: null }, data: { revokedAt: new Date() } }),
-      this.prisma.auditEvent.create({
-        data: { actorId: reset.userId, action: 'PASSWORD_RESET_COMPLETED', entityType: 'User', entityId: reset.userId },
-      }),
+      this.prisma.auditEvent.create({ data: { actorId: reset.userId, action: 'PASSWORD_RESET_COMPLETED', entityType: 'User', entityId: reset.userId } }),
     ]);
     return { changed: true, sessionsRevoked: true };
   }
@@ -164,9 +172,7 @@ export class AuthService {
             userId: id,
             OR: [
               ...(context?.deviceId ? [{ deviceId: context.deviceId }] : []),
-              ...(context?.ipAddress && context?.userAgent
-                ? [{ ipAddress: context.ipAddress, userAgent: context.userAgent }]
-                : []),
+              ...(context?.ipAddress && context?.userAgent ? [{ ipAddress: context.ipAddress, userAgent: context.userAgent }] : []),
             ],
           },
         })
@@ -177,20 +183,11 @@ export class AuthService {
     const refreshTokenHash = this.hashToken(refreshToken);
     const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const session = await this.prisma.authSession.create({
-      data: {
-        userId: id,
-        refreshTokenHash,
-        deviceId: context?.deviceId,
-        userAgent: context?.userAgent,
-        ipAddress: context?.ipAddress,
-        expiresAt: refreshExpiresAt,
-      },
+      data: { userId: id, refreshTokenHash, deviceId: context?.deviceId, userAgent: context?.userAgent, ipAddress: context?.ipAddress, expiresAt: refreshExpiresAt },
     });
 
     const auditWrites = [
-      this.prisma.auditEvent.create({
-        data: { actorId: id, action: 'AUTH_SESSION_CREATED', entityType: 'AuthSession', entityId: session.id },
-      }),
+      this.prisma.auditEvent.create({ data: { actorId: id, action: 'AUTH_SESSION_CREATED', entityType: 'AuthSession', entityId: session.id } }),
     ];
     if (priorSession && !knownContext) {
       auditWrites.push(
@@ -200,16 +197,20 @@ export class AuthService {
             action: 'AUTH_LOGIN_NEW_CONTEXT',
             entityType: 'AuthSession',
             entityId: session.id,
-            metadata: {
-              deviceId: context?.deviceId ?? null,
-              ipAddress: context?.ipAddress ?? null,
-              userAgent: context?.userAgent ?? null,
-            },
+            metadata: { deviceId: context?.deviceId ?? null, ipAddress: context?.ipAddress ?? null, userAgent: context?.userAgent ?? null },
           },
         }),
       );
     }
     await this.prisma.$transaction(auditWrites);
+
+    if (priorSession && !knownContext) {
+      await this.email.send(
+        email,
+        'Novo acesso a sua conta',
+        `Detectamos um novo acesso. Dispositivo: ${context?.deviceId ?? 'nao informado'}. IP: ${context?.ipAddress ?? 'nao informado'}. Navegador: ${context?.userAgent ?? 'nao informado'}. Se nao foi voce, revogue a sessao imediatamente.`,
+      );
+    }
 
     return {
       accessToken,
