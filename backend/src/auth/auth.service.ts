@@ -10,6 +10,7 @@ import { PasswordResetConfirmDto } from './dto/password-reset-confirm.dto';
 import { PasswordResetRequestDto } from './dto/password-reset-request.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
+import { TotpService } from './totp.service';
 
 @Injectable()
 export class AuthService {
@@ -18,6 +19,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
+    private readonly totp: TotpService,
   ) {}
 
   private hashToken(token: string) {
@@ -39,6 +41,17 @@ export class AuthService {
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
     }
+
+    const mfa = await this.prisma.totpConfiguration.findUnique({ where: { userId: user.id } });
+    if (mfa?.enabledAt) {
+      if (!dto.mfaCode) throw new UnauthorizedException('MFA code required');
+      const secret = this.totp.decryptSecret(mfa);
+      if (!this.totp.verify(dto.mfaCode, secret)) throw new UnauthorizedException('Invalid MFA code');
+      await this.prisma.auditEvent.create({
+        data: { actorId: user.id, action: 'AUTH_MFA_VERIFIED', entityType: 'User', entityId: user.id },
+      });
+    }
+
     return this.issueSession(user.id, user.email, user.role, user.name, context);
   }
 
@@ -77,6 +90,7 @@ export class AuthService {
       refreshToken: nextRefreshToken,
       expiresInSeconds: 3600,
       refreshExpiresAt: nextExpiresAt.toISOString(),
+      sessionId: session.id,
       user: { id: session.user.id, email: session.user.email, role: session.user.role, name: session.user.name },
     };
   }
@@ -143,6 +157,21 @@ export class AuthService {
     name: string,
     context?: { deviceId?: string; userAgent?: string; ipAddress?: string },
   ) {
+    const priorSession = await this.prisma.authSession.findFirst({ where: { userId: id } });
+    const knownContext = priorSession
+      ? await this.prisma.authSession.findFirst({
+          where: {
+            userId: id,
+            OR: [
+              ...(context?.deviceId ? [{ deviceId: context.deviceId }] : []),
+              ...(context?.ipAddress && context?.userAgent
+                ? [{ ipAddress: context.ipAddress, userAgent: context.userAgent }]
+                : []),
+            ],
+          },
+        })
+      : null;
+
     const accessToken = await this.jwt.signAsync({ sub: id, email, role });
     const refreshToken = this.createOpaqueToken();
     const refreshTokenHash = this.hashToken(refreshToken);
@@ -157,9 +186,31 @@ export class AuthService {
         expiresAt: refreshExpiresAt,
       },
     });
-    await this.prisma.auditEvent.create({
-      data: { actorId: id, action: 'AUTH_SESSION_CREATED', entityType: 'AuthSession', entityId: session.id },
-    });
+
+    const auditWrites = [
+      this.prisma.auditEvent.create({
+        data: { actorId: id, action: 'AUTH_SESSION_CREATED', entityType: 'AuthSession', entityId: session.id },
+      }),
+    ];
+    if (priorSession && !knownContext) {
+      auditWrites.push(
+        this.prisma.auditEvent.create({
+          data: {
+            actorId: id,
+            action: 'AUTH_LOGIN_NEW_CONTEXT',
+            entityType: 'AuthSession',
+            entityId: session.id,
+            metadata: {
+              deviceId: context?.deviceId ?? null,
+              ipAddress: context?.ipAddress ?? null,
+              userAgent: context?.userAgent ?? null,
+            },
+          },
+        }),
+      );
+    }
+    await this.prisma.$transaction(auditWrites);
+
     return {
       accessToken,
       refreshToken,
