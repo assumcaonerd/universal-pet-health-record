@@ -1,11 +1,14 @@
 class Prescription {
-  Prescription({required this.id, required this.medication, required this.dosage, required this.frequency, this.duration, this.instructions, required this.prescribedAt});
+  Prescription({required this.id, required this.medication, required this.dosage, required this.frequency, this.duration, this.instructions, this.startsAt, this.endsAt, this.intervalMinutes, required this.prescribedAt});
   final String id;
   final String medication;
   final String dosage;
   final String frequency;
   final String? duration;
   final String? instructions;
+  final DateTime? startsAt;
+  final DateTime? endsAt;
+  final int? intervalMinutes;
   final DateTime prescribedAt;
 
   factory Prescription.fromJson(Map<String, dynamic> json) => Prescription(
@@ -15,6 +18,9 @@ class Prescription {
         frequency: json['frequency'] as String? ?? '',
         duration: json['duration'] as String?,
         instructions: json['instructions'] as String?,
+        startsAt: DateTime.tryParse(json['startsAt'] as String? ?? ''),
+        endsAt: DateTime.tryParse(json['endsAt'] as String? ?? ''),
+        intervalMinutes: (json['intervalMinutes'] as num?)?.toInt(),
         prescribedAt: DateTime.tryParse(json['prescribedAt'] as String? ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0),
       );
 
@@ -25,6 +31,9 @@ class Prescription {
         'frequency': frequency,
         'duration': duration,
         'instructions': instructions,
+        'startsAt': startsAt?.toIso8601String(),
+        'endsAt': endsAt?.toIso8601String(),
+        'intervalMinutes': intervalMinutes,
         'prescribedAt': prescribedAt.toIso8601String(),
       };
 }
@@ -86,13 +95,14 @@ class MedicalRecordVersion {
 }
 
 class MedicalRecord {
-  MedicalRecord({required this.id, required this.type, this.diagnosis, this.treatment, this.notes, required this.occurredAt, required this.currentVersion, required this.versions});
+  MedicalRecord({required this.id, required this.type, this.diagnosis, this.treatment, this.notes, required this.occurredAt, this.followUpAt, required this.currentVersion, required this.versions});
   final String id;
   final String type;
   final String? diagnosis;
   final String? treatment;
   final String? notes;
   final DateTime occurredAt;
+  final DateTime? followUpAt;
   final int currentVersion;
   final List<MedicalRecordVersion> versions;
 
@@ -103,6 +113,7 @@ class MedicalRecord {
         treatment: json['treatment'] as String?,
         notes: json['notes'] as String?,
         occurredAt: DateTime.tryParse(json['occurredAt'] as String? ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0),
+        followUpAt: DateTime.tryParse(json['followUpAt'] as String? ?? ''),
         currentVersion: json['currentVersion'] as int? ?? 1,
         versions: (json['versions'] as List<dynamic>? ?? const []).map((e) => MedicalRecordVersion.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
       );
@@ -114,6 +125,7 @@ class MedicalRecord {
         'treatment': treatment,
         'notes': notes,
         'occurredAt': occurredAt.toIso8601String(),
+        'followUpAt': followUpAt?.toIso8601String(),
         'currentVersion': currentVersion,
         'versions': versions.map((e) => e.toJson()).toList(),
       };
