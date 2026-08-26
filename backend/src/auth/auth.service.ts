@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
+import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
@@ -16,6 +17,7 @@ export class AuthService {
     private readonly users: UsersService,
     private readonly jwt: JwtService,
     private readonly prisma: PrismaService,
+    private readonly email: EmailService,
   ) {}
 
   private hashToken(token: string) {
@@ -63,12 +65,7 @@ export class AuthService {
       });
       if (updated.count !== 1) return false;
       await tx.auditEvent.create({
-        data: {
-          actorId: session.userId,
-          action: 'AUTH_SESSION_REFRESHED',
-          entityType: 'AuthSession',
-          entityId: session.id,
-        },
+        data: { actorId: session.userId, action: 'AUTH_SESSION_REFRESHED', entityType: 'AuthSession', entityId: session.id },
       });
       return true;
     });
@@ -92,12 +89,7 @@ export class AuthService {
       await this.prisma.$transaction([
         this.prisma.authSession.update({ where: { id: session.id }, data: { revokedAt: new Date() } }),
         this.prisma.auditEvent.create({
-          data: {
-            actorId: session.userId,
-            action: 'AUTH_SESSION_REVOKED',
-            entityType: 'AuthSession',
-            entityId: session.id,
-          },
+          data: { actorId: session.userId, action: 'AUTH_SESSION_REVOKED', entityType: 'AuthSession', entityId: session.id },
         }),
       ]);
     }
@@ -116,8 +108,13 @@ export class AuthService {
       data: { actorId: user.id, action: 'PASSWORD_RESET_REQUESTED', entityType: 'User', entityId: user.id },
     });
 
-    if (process.env.NODE_ENV !== 'production') return { accepted: true, developmentToken: token, expiresAt: expiresAt.toISOString() };
-    return { accepted: true };
+    const baseUrl = process.env.APP_PUBLIC_URL ?? 'http://localhost:3001';
+    const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`;
+    await this.email.send(user.email, 'Recuperacao de senha', `Redefina sua senha: ${resetUrl}`);
+
+    return process.env.NODE_ENV === 'production'
+      ? { accepted: true }
+      : { accepted: true, developmentToken: token, expiresAt: expiresAt.toISOString() };
   }
 
   async confirmPasswordReset(dto: PasswordResetConfirmDto) {
@@ -168,6 +165,7 @@ export class AuthService {
       refreshToken,
       expiresInSeconds: 3600,
       refreshExpiresAt: refreshExpiresAt.toISOString(),
+      sessionId: session.id,
       user: { id, email, role, name },
     };
   }
