@@ -5,36 +5,37 @@ import '../models/care_reminder.dart';
 import '../models/pet.dart';
 import '../services/notification_service.dart';
 import '../services/reminder_service.dart';
+import '../services/reminder_state_service.dart';
 
 class RemindersScreen extends StatefulWidget {
   const RemindersScreen({super.key, required this.pets});
   final List<Pet> pets;
-
-  @override
-  State<RemindersScreen> createState() => _RemindersScreenState();
+  @override State<RemindersScreen> createState() => _RemindersScreenState();
 }
 
 class _RemindersScreenState extends State<RemindersScreen> {
   final NotificationService _notifications = NotificationService();
+  final ReminderStateService _states = ReminderStateService();
   bool _loading = true;
   List<CareReminder> _items = const [];
+  Map<String, ReminderState> _stateMap = const {};
   NotificationPreferences _prefs = const NotificationPreferences();
 
-  @override
-  void initState() { super.initState(); _load(); }
+  @override void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
     final prefs = await _notifications.preferences();
     final items = await ReminderService(OfflineStore()).upcoming(widget.pets);
+    final states = await _states.all();
     await _notifications.reschedule(items);
-    if (mounted) setState(() { _prefs = prefs; _items = items; _loading = false; });
+    if (mounted) setState(() { _prefs = prefs; _items = items; _stateMap = states; _loading = false; });
   }
 
-  Future<void> _savePrefs(NotificationPreferences prefs) async {
-    await _notifications.savePreferences(prefs);
-    await _notifications.reschedule(_items);
-    if (mounted) setState(() => _prefs = prefs);
-  }
+  Future<void> _complete(CareReminder item) async { await _states.complete(item.id); await _load(); }
+  Future<void> _reopen(CareReminder item) async { await _states.reopen(item.id); await _load(); }
+  Future<void> _snooze(CareReminder item, Duration duration) async { await _states.snooze(item.id, duration); await _load(); }
+
+  Future<void> _savePrefs(NotificationPreferences prefs) async { await _notifications.savePreferences(prefs); await _notifications.reschedule(_items); if (mounted) setState(() => _prefs = prefs); }
 
   Future<void> _settings() async {
     var draft = _prefs;
@@ -45,35 +46,36 @@ class _RemindersScreenState extends State<RemindersScreen> {
         SwitchListTile(title: const Text('Vacinas'), value: draft.vaccines, onChanged: (v) => update(NotificationPreferences(vaccines: v, medications: draft.medications, followUps: draft.followUps, advanceHours: draft.advanceHours))),
         SwitchListTile(title: const Text('Medicamentos'), value: draft.medications, onChanged: (v) => update(NotificationPreferences(vaccines: draft.vaccines, medications: v, followUps: draft.followUps, advanceHours: draft.advanceHours))),
         SwitchListTile(title: const Text('Retornos veterinários'), value: draft.followUps, onChanged: (v) => update(NotificationPreferences(vaccines: draft.vaccines, medications: draft.medications, followUps: v, advanceHours: draft.advanceHours))),
-        DropdownButtonFormField<int>(value: draft.advanceHours, decoration: const InputDecoration(labelText: 'Avisar com antecedência'), items: const [
-          DropdownMenuItem(value: 1, child: Text('1 hora antes')),
-          DropdownMenuItem(value: 6, child: Text('6 horas antes')),
-          DropdownMenuItem(value: 24, child: Text('1 dia antes')),
-          DropdownMenuItem(value: 48, child: Text('2 dias antes')),
-          DropdownMenuItem(value: 168, child: Text('7 dias antes')),
-        ], onChanged: (v) { if (v != null) update(NotificationPreferences(vaccines: draft.vaccines, medications: draft.medications, followUps: draft.followUps, advanceHours: v)); }),
-        const SizedBox(height: 20),
-        FilledButton(onPressed: () async { await _savePrefs(draft); if (context.mounted) Navigator.pop(context); }, child: const Text('Salvar preferências')),
+        DropdownButtonFormField<int>(value: draft.advanceHours, decoration: const InputDecoration(labelText: 'Avisar com antecedência'), items: const [DropdownMenuItem(value: 1, child: Text('1 hora antes')), DropdownMenuItem(value: 6, child: Text('6 horas antes')), DropdownMenuItem(value: 24, child: Text('1 dia antes')), DropdownMenuItem(value: 48, child: Text('2 dias antes')), DropdownMenuItem(value: 168, child: Text('7 dias antes'))], onChanged: (v) { if (v != null) update(NotificationPreferences(vaccines: draft.vaccines, medications: draft.medications, followUps: draft.followUps, advanceHours: v)); }),
+        const SizedBox(height: 20), FilledButton(onPressed: () async { await _savePrefs(draft); if (context.mounted) Navigator.pop(context); }, child: const Text('Salvar preferências')),
       ])));
     }));
   }
 
   String _dateTime(DateTime date) => DateFormat('dd/MM/yyyy HH:mm').format(date.toLocal());
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Cuidados e lembretes'), actions: [IconButton(tooltip: 'Preferências', onPressed: _settings, icon: const Icon(Icons.tune))]),
-    body: _loading ? const Center(child: CircularProgressIndicator()) : _items.isEmpty
-      ? const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('Nenhum cuidado com data estruturada vence nos próximos 45 dias. Os lembretes são calculados a partir do prontuário salvo no aparelho.', textAlign: TextAlign.center)))
-      : RefreshIndicator(onRefresh: _load, child: ListView.separated(padding: const EdgeInsets.all(16), itemCount: _items.length, separatorBuilder: (_, __) => const SizedBox(height: 10), itemBuilder: (_, index) {
-          final item = _items[index];
+  @override Widget build(BuildContext context) {
+    final active = _items.where((e) => _stateMap[e.id]?.completed != true).toList();
+    final completed = _items.where((e) => _stateMap[e.id]?.completed == true).toList();
+    return Scaffold(
+      appBar: AppBar(title: const Text('Cuidados e lembretes'), actions: [IconButton(tooltip: 'Preferências', onPressed: _settings, icon: const Icon(Icons.tune))]),
+      body: _loading ? const Center(child: CircularProgressIndicator()) : RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.all(16), children: [
+        if (active.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(20), child: Text('Nenhum cuidado pendente com data estruturada nos próximos 45 dias.', textAlign: TextAlign.center))),
+        ...active.map((item) {
+          final state = _stateMap[item.id];
           return Card(child: ListTile(
             leading: CircleAvatar(child: Icon(item.kind == CareReminderKind.vaccine ? Icons.vaccines_outlined : item.kind == CareReminderKind.medication ? Icons.medication_outlined : Icons.event_outlined)),
             title: Text(item.title),
-            subtitle: Text('${item.petName} • ${item.overdue ? 'atrasado desde' : 'previsto para'} ${_dateTime(item.dueAt)}${item.detail == null ? '' : '\n${item.detail}'}'),
-            isThreeLine: item.detail != null,
-            trailing: item.overdue ? const Icon(Icons.priority_high) : null,
+            subtitle: Text('${item.petName} • ${item.overdue ? 'atrasado desde' : 'previsto para'} ${_dateTime(item.dueAt)}${state?.snoozedUntil == null ? '' : '\nAdiado até ${_dateTime(state!.snoozedUntil!)}'}${item.detail == null ? '' : '\n${item.detail}'}'),
+            isThreeLine: state?.snoozedUntil != null || item.detail != null,
+            trailing: PopupMenuButton<String>(onSelected: (value) { if (value == 'done') _complete(item); if (value == '1h') _snooze(item, const Duration(hours: 1)); if (value == '6h') _snooze(item, const Duration(hours: 6)); if (value == '1d') _snooze(item, const Duration(days: 1)); }, itemBuilder: (_) => [
+              PopupMenuItem(value: 'done', child: Text(item.kind == CareReminderKind.medication ? 'Marcar dose como tomada' : item.kind == CareReminderKind.followUp ? 'Marcar retorno realizado' : 'Marcar cuidado realizado')),
+              const PopupMenuDivider(), const PopupMenuItem(value: '1h', child: Text('Adiar 1 hora')), const PopupMenuItem(value: '6h', child: Text('Adiar 6 horas')), const PopupMenuItem(value: '1d', child: Text('Adiar 1 dia')),
+            ]),
           ));
-        })),
-  );
+        }),
+        if (completed.isNotEmpty) ExpansionTile(title: Text('Concluídos (${completed.length})'), children: completed.map((item) => ListTile(leading: const Icon(Icons.check_circle_outline), title: Text(item.title), subtitle: Text(item.petName), trailing: TextButton(onPressed: () => _reopen(item), child: const Text('Reabrir')))).toList()),
+      ])),
+    );
+  }
 }
