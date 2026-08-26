@@ -7,11 +7,17 @@ class AuthService {
   final ApiClient api;
   final SessionStore sessionStore;
 
-  Future<void> login({required String email, required String password, String? mfaCode}) async {
+  Future<void> login({
+    required String email,
+    required String password,
+    String? mfaCode,
+    String? recoveryCode,
+  }) async {
     final result = await api.post('/auth/login', {
       'email': email,
       'password': password,
       if (mfaCode != null && mfaCode.isNotEmpty) 'mfaCode': mfaCode,
+      if (recoveryCode != null && recoveryCode.isNotEmpty) 'recoveryCode': recoveryCode,
     });
     await sessionStore.save(
       accessToken: result['accessToken'] as String,
