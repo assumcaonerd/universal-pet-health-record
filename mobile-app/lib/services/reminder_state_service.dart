@@ -18,7 +18,9 @@ class ReminderState {
 
 class ReminderStateService {
   ReminderStateService({FlutterSecureStorage? storage, OfflineStore? offline})
-      : _storage = storage ?? const FlutterSecureStorage(), _offline = offline ?? OfflineStore();
+      : _storage = storage ?? const FlutterSecureStorage(),
+        _offline = offline ?? OfflineStore();
+
   final FlutterSecureStorage _storage;
   final OfflineStore _offline;
   static const _key = 'care_reminder_states_v1';
@@ -55,17 +57,29 @@ class ReminderStateService {
 
   Future<void> applyRemote(String reminderId, ReminderState? state) async {
     final states = await all();
-    if (state == null) states.remove(reminderId); else states[reminderId] = state;
+    if (state == null) {
+      states.remove(reminderId);
+    } else {
+      states[reminderId] = state;
+    }
     await _save(states);
   }
 
   Future<void> _queue(String reminderId, Map<String, dynamic> state) async {
     final deviceId = await _offline.deviceId();
     await _offline.enqueue(PendingSyncEvent(
-      clientEventId: const Uuid().v4(), deviceId: deviceId, entityType: 'ReminderState', entityId: const Uuid().v4(), operation: 'SET', version: 1,
+      clientEventId: const Uuid().v4(),
+      deviceId: deviceId,
+      entityType: 'ReminderState',
+      entityId: const Uuid().v4(),
+      operation: 'SET',
+      version: 1,
       payload: {'reminderId': reminderId, 'state': state},
     ));
   }
 
-  Future<void> _save(Map<String, ReminderState> states) => _storage.write(key: _key, value: jsonEncode(states.map((key, value) => MapEntry(key, value.toJson()))));
+  Future<void> _save(Map<String, ReminderState> states) => _storage.write(
+    key: _key,
+    value: jsonEncode(states.map((key, value) => MapEntry(key, value.toJson()))),
+  );
 }
