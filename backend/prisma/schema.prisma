@@ -40,16 +40,18 @@ enum VerificationStatus {
 }
 
 model User {
-  id                    String                   @id @default(uuid())
-  email                 String                   @unique
-  name                  String
-  passwordHash          String
-  role                  UserRole                 @default(OWNER)
-  createdAt             DateTime                 @default(now())
-  updatedAt             DateTime                 @updatedAt
-  pets                  Pet[]                    @relation("PrimaryOwner")
-  memberships           OrganizationMembership[]
-  professionalProfile   ProfessionalProfile?
+  id                  String                   @id @default(uuid())
+  email               String                   @unique
+  name                String
+  passwordHash        String
+  role                UserRole                 @default(OWNER)
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  pets                Pet[]                    @relation("PrimaryOwner")
+  memberships         OrganizationMembership[]
+  professionalProfile ProfessionalProfile?
+  medicalRecords      MedicalRecord[]          @relation("RecordVeterinarian")
+  recordVersions      MedicalRecordVersion[]   @relation("VersionAuthor")
 }
 
 model Pet {
@@ -70,16 +72,37 @@ model Pet {
 }
 
 model MedicalRecord {
-  id             String   @id @default(uuid())
+  id             String                 @id @default(uuid())
   petId          String
   veterinarianId String
+  organizationId String?
   type           String
   diagnosis      String?
   treatment      String?
   notes          String?
   occurredAt     DateTime
-  createdAt      DateTime @default(now())
-  pet            Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+  createdAt      DateTime               @default(now())
+  currentVersion Int                    @default(1)
+  pet            Pet                    @relation(fields: [petId], references: [id], onDelete: Cascade)
+  veterinarian   User                   @relation("RecordVeterinarian", fields: [veterinarianId], references: [id])
+  organization   Organization?          @relation(fields: [organizationId], references: [id])
+  versions       MedicalRecordVersion[]
+}
+
+model MedicalRecordVersion {
+  id              String        @id @default(uuid())
+  medicalRecordId String
+  version         Int
+  diagnosis       String?
+  treatment       String?
+  notes           String?
+  reason          String?
+  authorId        String
+  createdAt       DateTime      @default(now())
+  medicalRecord   MedicalRecord @relation(fields: [medicalRecordId], references: [id], onDelete: Cascade)
+  author          User          @relation("VersionAuthor", fields: [authorId], references: [id])
+
+  @@unique([medicalRecordId, version])
 }
 
 model Vaccination {
@@ -127,6 +150,7 @@ model Organization {
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
   memberships        OrganizationMembership[]
+  medicalRecords     MedicalRecord[]
 }
 
 model OrganizationMembership {
