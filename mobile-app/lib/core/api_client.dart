@@ -9,19 +9,23 @@ class ApiClient {
   final SessionStore sessionStore;
 
   Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body, {bool authenticated = false}) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl$path'),
-      headers: await _headers(authenticated),
-      body: jsonEncode(body),
-    );
+    final response = await http.post(Uri.parse('$baseUrl$path'), headers: await _headers(authenticated), body: jsonEncode(body));
+    return _decode(response);
+  }
+
+  Future<Map<String, dynamic>> patch(String path, Map<String, dynamic> body) async {
+    final response = await http.patch(Uri.parse('$baseUrl$path'), headers: await _headers(true), body: jsonEncode(body));
+    return _decode(response);
+  }
+
+  Future<Map<String, dynamic>> delete(String path) async {
+    final response = await http.delete(Uri.parse('$baseUrl$path'), headers: await _headers(true));
     return _decode(response);
   }
 
   Future<List<dynamic>> getList(String path) async {
     final response = await http.get(Uri.parse('$baseUrl$path'), headers: await _headers(true));
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException(response.statusCode, _message(response.body));
-    }
+    if (response.statusCode < 200 || response.statusCode >= 300) throw ApiException(response.statusCode, _message(response.body));
     return jsonDecode(response.body) as List<dynamic>;
   }
 
@@ -40,9 +44,7 @@ class ApiClient {
   }
 
   Map<String, dynamic> _decode(http.Response response) {
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException(response.statusCode, _message(response.body));
-    }
+    if (response.statusCode < 200 || response.statusCode >= 300) throw ApiException(response.statusCode, _message(response.body));
     if (response.body.isEmpty) return <String, dynamic>{};
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
