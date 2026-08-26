@@ -1,3 +1,13 @@
+CREATE TABLE "Organization" (
+  "id" TEXT PRIMARY KEY,
+  "name" TEXT NOT NULL,
+  "registrationNumber" TEXT,
+  "city" TEXT,
+  "state" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL
+);
+
 ALTER TABLE "MedicalRecord"
 ADD COLUMN "organizationId" TEXT,
 ADD COLUMN "currentVersion" INTEGER NOT NULL DEFAULT 1;
