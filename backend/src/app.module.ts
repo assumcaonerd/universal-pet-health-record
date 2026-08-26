@@ -10,6 +10,7 @@ import { PetsModule } from './pets/pets.module';
 import { PrescriptionsModule } from './prescriptions/prescriptions.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProfessionalsModule } from './professionals/professionals.module';
+import { SyncModule } from './sync/sync.module';
 import { UsersModule } from './users/users.module';
 import { VaccinationsModule } from './vaccinations/vaccinations.module';
 
@@ -28,6 +29,7 @@ import { VaccinationsModule } from './vaccinations/vaccinations.module';
     PrescriptionsModule,
     AllergiesModule,
     ClinicalAttachmentsModule,
+    SyncModule,
   ],
 })
 export class AppModule {}
