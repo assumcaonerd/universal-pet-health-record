@@ -6,8 +6,13 @@ Aplicativo Flutter do tutor para gerenciar o prontuário de saúde do pet.
 
 - Flutter / Dart
 - Material 3
-- `http` para comunicação com a API
+- `http` para comunicação com a API e upload direto ao storage
 - `flutter_secure_storage` para tokens de sessão
+- `crypto` para SHA-256 local
+- `file_picker` para seleção de exames e documentos
+- `mime` para detecção de tipo de arquivo
+- `qr_flutter` para QR temporário gerado localmente
+- `url_launcher` para abertura de downloads pré-assinados
 - `intl` para datas
 
 ## Já implementado
@@ -28,10 +33,30 @@ Aplicativo Flutter do tutor para gerenciar o prontuário de saúde do pet.
 - desativação não destrutiva de alergias
 - histórico clínico com diagnóstico, tratamento e observações
 - visualização do histórico de versões do prontuário quando houver emendas
+- QR temporário com nível READ/WRITE, expiração, limite de usos e revogação
+- seleção de exames/documentos no aparelho
+- cálculo de SHA-256 no próprio dispositivo antes do upload
+- upload direto para S3 compatível por URL pré-assinada
+- registro do anexo somente após validação de integridade no backend
+- vínculo opcional de documento a um atendimento clínico
+- listagem de exames e documentos por pet
+- download/visualização por URL temporária autorizada pelo backend
 - carregamento independente de cada seção clínica para reduzir impacto de falhas parciais
 - tratamento de erros da API
 - tema Material 3
-- testes dos modelos `Pet`, `Prescription`, `Allergy` e `MedicalRecord`
+- testes de modelos clínicos e de anexos
+
+## Fluxo seguro de documentos
+
+1. O tutor seleciona um arquivo de até 50 MB.
+2. O app calcula o SHA-256 antes de transmitir o arquivo.
+3. A API fornece uma URL de upload pré-assinada de curta duração.
+4. O app envia os bytes diretamente ao storage, junto com `Content-Type` e `x-amz-meta-sha256`.
+5. O app solicita o registro do anexo.
+6. O backend executa `HEAD` no objeto e confere SHA-256, tamanho e MIME type antes de aceitar o registro.
+7. Para abrir um documento, a API valida a autorização do tutor e retorna uma URL de download temporária.
+
+O arquivo pode ficar no prontuário geral do pet ou ser vinculado a um `MedicalRecord` existente. As URLs pré-assinadas não são persistidas no aplicativo.
 
 ## Regras clínicas importantes
 
@@ -66,9 +91,8 @@ flutter run
 
 ## Próximos passos
 
-1. QR de compartilhamento temporário pelo tutor
-2. anexos e exames clínicos no app
-3. cache local criptografado
-4. sincronização offline-first com resolução visual de conflitos
-5. notificações de vacinas, medicamentos e eventos importantes
-6. acabamento de acessibilidade, internacionalização e design system
+1. cache local criptografado do prontuário essencial
+2. sincronização offline-first com resolução visual de conflitos
+3. fila offline para alterações do tutor
+4. notificações de vacinas, medicamentos e eventos importantes
+5. acabamento de acessibilidade, internacionalização e design system
